@@ -25,20 +25,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 ?>
 
-<h2>Create New Questionnaire</h2>
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>إنشاء استبيان جديد</title>
+    <!-- Include Bootstrap CSS -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Custom Styles (if any) -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .form-group{
+            text-align:right;
+        }
+    </style>
+</head>
+<body>
 
-<form action="create.php" method="post">
-    <div class="form-group">
-        <label>Title</label>
-        <input type="text" name="title" required>
-    </div>
-    <div class="form-group">
-        <label>Description</label>
-        <textarea name="description" required></textarea>
-    </div>
-    <input type="submit" value="Create Questionnaire">
-</form>
+    <div class="container mt-5">
+        <h2 class="mb-4 text-center">إنشاء استبيان جديد</h2>
 
-<?php
-include '../../includes/footer.php';
-?>
+        <form action="create.php" method="post">
+            <div class="form-group">
+                <label for="title">عنوان الاستبيان</label>
+                <input type="text" name="title" id="title" class="form-control" placeholder="أدخل عنوان الاستبيان" required>
+            </div>
+            <div class="form-group">
+                <label for="description">وصف الاستبيان</label>
+                <textarea name="description" id="description" class="form-control" placeholder="أدخل وصفاً للاستبيان" rows="5" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">إنشاء الاستبيان</button>
+        </form>
+    </div>
+
+    <?php include '../../includes/footer.php'; ?>
+    <!-- Include Bootstrap JS and dependencies if needed -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+</body>
+</html>

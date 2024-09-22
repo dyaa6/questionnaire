@@ -33,6 +33,18 @@ if (!defined('ALLOW_ACCESS')) {
 }
 ?>
 
+
+<?php
+// Check for success message
+$msg = '';
+if (isset($_GET['msg']) && $_GET['msg'] == 'deleted') {
+    $msg = 'تم حذف الاستبيان بنجاح.';
+    echo '<script>alert("تم حذف الاستبيان بنجاح.")</script>';
+    header('Location: index.php');
+}
+?>
+
+
 <!DOCTYPE html>
 <html lang="ar" dir='rtl'>
 <head>
@@ -77,7 +89,12 @@ $host = parse_url($current_url, PHP_URL_HOST);
                     <a class="nav-link" href="questionnaires/index.php">إدارة الاستبيانات</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="responses/index.php">الردود</a>
+                <a class="nav-link" href="responses/index.php">الردود</a>
+                </li>
+                <li class="nav-item">
+                    <a href="<?php echo (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']; ?>/questionnaire/admin/logout.php" class="button">
+                    تسجيل الخروج    
+                    </a>
                 </li>
             </ul>
         </div>
@@ -95,8 +112,15 @@ $host = parse_url($current_url, PHP_URL_HOST);
                     <ul class="nav flex-column">
                         
                         <li class="nav-item">
-                            <a class="nav-link active" aria-current="page" href="index.php">
+                            <a class="nav-link active" aria-current="page" href="../index.php">
                                 <i class="bi bi-house-fill"></i>
+                                الرئيسية
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item">
+                            <a class="nav-link active" aria-current="page" href="index.php">
+                            <i class="bi bi-ui-checks"></i>
                                 لوحة التحكم
                             </a>
                         </li>
@@ -109,9 +133,9 @@ $host = parse_url($current_url, PHP_URL_HOST);
                         </li>
                         
                         <li class="nav-item">
-                            <a class="nav-link" href="questionnaires/index.php">
-                                <i class="bi bi-file-earmark-text-fill"></i>
-                                إدارة الاستبيانات
+                            <a class="nav-link" href="manage_admins.php">
+                                <i class="bi bi-person-fill"></i>
+                                    إدارة الحسابات
                             </a>
                         </li>
                         
@@ -119,6 +143,13 @@ $host = parse_url($current_url, PHP_URL_HOST);
                             <a class="nav-link" href="responses/index.php">
                                 <i class="bi bi-bar-chart-fill"></i>
                                 الردود
+                            </a>
+                        </li>
+                        
+                        <li class="nav-item">
+                        <i class="bi bi-door-closed-fill"></i>
+                            <a href="<?php echo (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']; ?>/questionnaire/admin/logout.php" class="button">
+                            تسجيل الخروج    
                             </a>
                         </li>
                     </ul>
@@ -243,9 +274,10 @@ $host = parse_url($current_url, PHP_URL_HOST);
                                                 <td><?php echo htmlspecialchars($questionnaire['title']); ?></td>
                                                 <td><?php echo date('d-m-Y', strtotime($questionnaire['created_at'])); ?></td>
                                                 <td>
-                                                    <a href="questionnaires/view.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-info">عرض</a>
-                                                    <a href="questionnaires/edit.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-warning">تعديل</a>
-                                                    <a href="questionnaires/delete.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('هل أنت متأكد أنك تريد حذف هذا الاستبيان؟');">حذف</a>
+                                                <a href="questionnaires/view.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-info">عرض</a>
+                                                <a href="questionnaires/edit.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-warning">تعديل</a>
+                                                <a href="questionnaires/delete.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('هل أنت متأكد أنك تريد حذف هذا الاستبيان؟');">حذف</a>
+                                                <a href="../../questionnaire/questionnaire/take.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-success">الرابط</a>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>

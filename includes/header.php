@@ -4,6 +4,10 @@
 if (!defined('ALLOW_ACCESS')) {
     die('Direct access not permitted.');
 }
+// Start the session
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 ?>
 
 <!DOCTYPE html>
@@ -40,37 +44,17 @@ $host = parse_url($current_url, PHP_URL_HOST);
             <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
                 <!-- Dashboard Link -->
                 <li class="nav-item">
-                    <a class="nav-link <?php if(basename($_SERVER['PHP_SELF']) == 'index.php') echo 'active'; ?>" href="/admin/index.php">
-                        <i class="bi bi-speedometer2"></i> لوحة التحكم
+                    <a class="nav-link <?php if(basename($_SERVER['PHP_SELF']) == 'index.php') echo 'active'; ?>" href="<?php echo (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']; ?>/questionnaire/admin/index.php" class="button">
+                    لوحة التحكم  
                     </a>
                 </li>
-                <!-- Create Questionnaire -->
-                <li class="nav-item">
-                    <a class="nav-link" href="/admin/questionnaires/create.php">
-                        <i class="bi bi-plus-circle"></i> إنشاء استبيان جديد
-                    </a>
-                </li>
-                <!-- Manage Questionnaires -->
-                <li class="nav-item">
-                    <a class="nav-link" href="/admin/questionnaires/index.php">
-                        <i class="bi bi-file-text"></i> إدارة الاستبيانات
-                    </a>
-                </li>
-                <!-- Responses -->
-                <li class="nav-item">
-                    <a class="nav-link" href="/admin/responses/index.php">
-                        <i class="bi bi-bar-chart-steps"></i> الردود
-                    </a>
-                </li>
+                
+                
                 <!-- Admin Profile / Logout -->
                 <?php if (isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true): ?>
+
                     <li class="nav-item">
-                        <a class="nav-link" href="/admin/profile.php">
-                            <i class="bi bi-person-circle"></i> الملف الشخصي
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link text-danger" href="/admin/logout.php">
+                        <a class="nav-link text-danger" href="<?php echo (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']; ?>/questionnaire/admin/logout.php">
                             <i class="bi bi-box-arrow-right"></i> تسجيل الخروج
                         </a>
                     </li>
@@ -84,8 +68,8 @@ $host = parse_url($current_url, PHP_URL_HOST);
                 <?php endif; ?>
                 <!-- Frontend Links -->
                 <li class="nav-item">
-                    <a class="nav-link" href="/index.php">
-                        <i class="bi bi-house-door"></i> الصفحة الرئيسية
+                <a class="nav-link <?php if(basename($_SERVER['PHP_SELF']) == 'index.php') echo 'active'; ?>" href="<?php echo (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST']; ?>/questionnaire/index.php" class="button">
+                    الصفحة الرئيسية
                     </a>
                 </li>
                 <!-- Additional Links (if any) -->

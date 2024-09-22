@@ -5,7 +5,9 @@
     
     <footer class="bg-dark text-white py-3 mt-4">
         <div class="container text-center">
-            <p>&copy; <?php echo date("Y"); ?> Questionnaire App. All rights reserved.</p>
+            <p>&copy; <?php echo date("Y"); ?> 
+        جميع الحقوق محفوظة 2024
+        </p>
         </div>
     </footer>
     
