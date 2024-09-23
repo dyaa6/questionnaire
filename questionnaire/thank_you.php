@@ -8,12 +8,19 @@ include '../includes/functions.php';
 
 <div class="card text-center">
     <div class="card-body">
-        <h2 class="card-title">Thank You!</h2>
-        <p class="card-text">Your responses have been submitted successfully.</p>
-        <a href="index.php" class="btn btn-success">Back to Questionnaires</a>
+        <h2 class="card-title">
+            شكراً لك!
+        </h2>
+        <p class="card-text">
+            تم استلام تقييمك بنجاح.
+        </p>
+      
     </div>
 </div>
-
+<br>
+<br>
+<br>
+<br>
 <?php
 include '../includes/footer.php';
 ?>

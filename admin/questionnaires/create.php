@@ -5,17 +5,25 @@ include '../../includes/header.php';
 include '../../includes/db_connect.php';
 include '../../includes/functions.php';
 
+// Start session if not already started
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+
 // Check if admin is logged in
 checkAdminLogin();
+
+// Get current admin ID
+$admin_id = $_SESSION['admin_id'];
 
 // Process form submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $title = sanitizeInput($_POST['title']);
     $description = sanitizeInput($_POST['description']);
 
-    // Insert into questionnaires table
-    $stmt = $pdo->prepare('INSERT INTO questionnaires (title, description, created_at) VALUES (?, ?, NOW())');
-    $stmt->execute([$title, $description]);
+    // Insert into questionnaires table with admin_id
+    $stmt = $pdo->prepare('INSERT INTO questionnaires (title, description, admin_id, created_at) VALUES (?, ?, ?, NOW())');
+    $stmt->execute([$title, $description, $admin_id]);
 
     $questionnaire_id = $pdo->lastInsertId();
 
@@ -30,17 +38,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>إنشاء استبيان جديد</title>
-    <!-- Include Bootstrap CSS -->
+    
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <!-- Custom Styles (if any) -->
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
         .form-group{
             text-align:right;
         }
     </style>
+    
 </head>
 <body>
 
@@ -61,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
 
     <?php include '../../includes/footer.php'; ?>
-    <!-- Include Bootstrap JS and dependencies if needed -->
+    
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 </body>
 </html>
