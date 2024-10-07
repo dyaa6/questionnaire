@@ -58,6 +58,19 @@ if (isset($_GET['id'])) {
     <h2><?php echo htmlspecialchars($questionnaire['title']); ?> - الإحصائيات</h2>
     <p><?php echo htmlspecialchars($questionnaire['description']); ?></p>
 
+    <!-- Modified Tabs -->
+    <ul class="nav nav-tabs mb-4 flex-column flex-sm-row" id="chartTypeTabs" role="tablist">
+        <li class="nav-item flex-sm-fill text-sm-center" role="presentation">
+            <button class="nav-link active" id="bar-tab" data-bs-toggle="tab" data-chart-type="bar" type="button" role="tab" aria-controls="bar" aria-selected="true">الرسم البياني العمودي</button>
+        </li>
+        <li class="nav-item flex-sm-fill text-sm-center" role="presentation">
+            <button class="nav-link" id="pie-tab" data-bs-toggle="tab" data-chart-type="pie" type="button" role="tab" aria-controls="pie" aria-selected="false">الرسم البياني الدائري</button>
+        </li>
+        <li class="nav-item flex-sm-fill text-sm-center" role="presentation">
+            <button class="nav-link" id="line-tab" data-bs-toggle="tab" data-chart-type="line" type="button" role="tab" aria-controls="line" aria-selected="false">الرسم البياني الخطي</button>
+        </li>
+    </ul>
+
     <?php foreach ($questions as $question): ?>
         <?php if ($question['question_type'] == 'stars'): ?>
             <div class="card mb-4">
@@ -76,7 +89,6 @@ if (isset($_GET['id'])) {
 
                     <p>متوسط التقييم: <strong><?php echo $average; ?></strong> من 10</p>
 
-                    <!-- Graph Placeholder -->
                     <canvas id="chart-<?php echo $question['question_id']; ?>"></canvas>
 
                 </div>
@@ -84,7 +96,6 @@ if (isset($_GET['id'])) {
         <?php endif; ?>
     <?php endforeach; ?>
 
-    <!-- Display text answers at the end -->
     <div class="mt-5">
         <h3>الإجابات النصية</h3>
         <?php if (!empty($textAnswers)): ?>
@@ -108,45 +119,126 @@ if (isset($_GET['id'])) {
             <p>لا توجد إجابات نصية.</p>
         <?php endif; ?>
     </div>
+
+    <div class="mt-5 text-center">
+        <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=excel" class="btn btn-primary">تصدير البيانات إلى ملف xls</a>
+    </div>
+    <div class="mt-5 text-center">
+        <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=csv" class="btn btn-primary">تصدير البيانات إلى ملف csv</a>
+    </div>
+
 </div>
 
-<!-- Include Chart.js -->
+<!-- Optional: Add custom CSS for small screens -->
+<style>
+@media (max-width: 576px) {
+    .nav-tabs .nav-link {
+        font-size: 0.9rem; /* Adjust the font size as needed */
+    }
+}
+</style>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
     const chartData = <?php echo json_encode($chartData); ?>;
+    const charts = {}; // لتخزين مراجع الرسوم البيانية
+    let currentChartType = 'bar'; // النوع الافتراضي
 
-    // Iterate over each question's data to create charts
-    Object.keys(chartData).forEach(function(questionId) {
-        const ctx = document.getElementById('chart-' + questionId).getContext('2d');
-        const data = chartData[questionId];
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: Object.keys(data),
-                datasets: [{
-                    label: 'عدد الإجابات',
-                    data: Object.values(data),
-                    backgroundColor: 'rgba(54, 162, 235, 0.6)'
-                }]
-            },
-            options: {
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        precision: 0
-                    }
+    // وظيفة لإنشاء الرسم البياني بناءً على النوع المحدد
+    function createCharts(chartType) {
+        // تكرار لكل سؤال لإنشاء الرسم البياني المناسب
+        Object.keys(chartData).forEach(function(questionId) {
+            const ctx = document.getElementById('chart-' + questionId).getContext('2d');
+            const data = chartData[questionId];
+
+            // إذا كان هناك رسم بياني موجود بالفعل، قم بتدميره
+            if (charts[questionId]) {
+                charts[questionId].destroy();
+            }
+
+            // إعداد البيانات للرسم البياني
+            let chartConfig = {
+                type: chartType,
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        label: 'عدد الإجابات',
+                        data: Object.values(data),
+                        backgroundColor: generateColors(chartType, Object.keys(data).length),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1,
+                        fill: chartType === 'line' ? false : true,
+                        tension: 0.1
+                    }]
                 },
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'توزيع التقييمات'
+                options: {
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'توزيع التقييمات'
+                        },
+                        legend: {
+                            display: chartType !== 'bar' // عرض الأسطورة باستثناء الرسم البياني العمودي
+                        }
                     },
-                    legend: {
-                        display: false
+                    scales: chartType === 'pie' ? {} : {
+                        y: {
+                            beginAtZero: true,
+                            precision: 0
+                        }
                     }
                 }
-            }
+            };
+
+            // إنشاء الرسم البياني وتخزين المرجع
+            charts[questionId] = new Chart(ctx, chartConfig);
+        });
+    }
+
+    // وظيفة لتوليد ألوان مختلفة بناءً على عدد الفئات ونوع الرسم البياني
+    function generateColors(chartType, num) {
+        const colors = [
+            'rgba(255, 99, 132, 0.6)',
+            'rgba(54, 162, 235, 0.6)',
+            'rgba(255, 206, 86, 0.6)',
+            'rgba(75, 192, 192, 0.6)',
+            'rgba(153, 102, 255, 0.6)',
+            'rgba(255, 159, 64, 0.6)',
+            'rgba(199, 199, 199, 0.6)',
+            'rgba(83, 102, 255, 0.6)',
+            'rgba(255, 102, 255, 0.6)',
+            'rgba(102, 255, 178, 0.6)'
+        ];
+        if (chartType === 'pie' || chartType === 'doughnut') {
+            return colors.slice(0, num);
+        } else {
+            // للأعمدة والخط، يمكن استخدام لون واحد أو تدرج ألوان
+            return 'rgba(54, 162, 235, 0.6)';
+        }
+    }
+
+    // إنشاء الرسوم البيانية عند تحميل الصفحة بالنوع الافتراضي
+    document.addEventListener('DOMContentLoaded', function() {
+        createCharts(currentChartType);
+
+        // إضافة مستمع للنقر على التبويبات لتغيير نوع الرسم البياني
+        const chartTypeTabs = document.querySelectorAll('#chartTypeTabs .nav-link');
+        chartTypeTabs.forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                // إزالة الفئة النشطة من جميع التبويبات
+                chartTypeTabs.forEach(function(t) {
+                    t.classList.remove('active');
+                });
+                // إضافة الفئة النشطة إلى التبويبة المحددة
+                this.classList.add('active');
+                // تحديث نوع الرسم البياني الحالي
+                currentChartType = this.getAttribute('data-chart-type');
+                // إعادة إنشاء الرسوم البيانية بالنوع الجديد
+                createCharts(currentChartType);
+            });
         });
     });
 </script>
