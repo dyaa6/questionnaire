@@ -8,6 +8,10 @@ include '../../includes/functions.php';
 // Check if admin is logged in
 checkAdminLogin();
 
+// Initialize error messages array
+$error_messages = [];
+
+// Get questionnaire ID
 $questionnaire_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 // Fetch questionnaire
@@ -16,18 +20,90 @@ $stmt->execute([$questionnaire_id]);
 $questionnaire = $stmt->fetch();
 
 if (!$questionnaire) {
-    echo "<p class='alert alert-danger'>الاستبيان غير موجود.</p>";
+    echo "<p class='alert alert-danger text-right'>الاستبيان غير موجود.</p>";
     include '../../includes/footer.php';
     exit();
 }
 
 // Process form submission for updating questionnaire details
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_details'])) {
+    // Sanitize inputs
     $title = sanitizeInput($_POST['title']);
     $description = sanitizeInput($_POST['description']);
 
-    $stmt = $pdo->prepare('UPDATE questionnaires SET title = ?, description = ? WHERE questionnaire_id = ?');
-    $stmt->execute([$title, $description, $questionnaire_id]);
+    // Initialize variables for image paths
+    $logo_path = $questionnaire['logo_path'];
+    $background_path = $questionnaire['background_path'];
+
+    // Define allowed extensions and max file size
+    $allowed_ext = ['jpg', 'jpeg', 'png', 'gif'];
+    $max_file_size = 2 * 1024 * 1024; // 2MB
+
+    // Handle Logo Upload
+    if (isset($_FILES['logo']) && $_FILES['logo']['error'] == UPLOAD_ERR_OK) {
+        if ($_FILES['logo']['size'] <= $max_file_size) {
+            $logo_tmp = $_FILES['logo']['tmp_name'];
+            $logo_name = basename($_FILES['logo']['name']);
+            $logo_ext = strtolower(pathinfo($logo_name, PATHINFO_EXTENSION));
+
+            if (in_array($logo_ext, $allowed_ext)) {
+                // Sanitize and generate unique file name
+                $unique_id = uniqid();
+                $new_logo_name = 'logo_' . $questionnaire_id . '_' . $unique_id . '.' . $logo_ext;
+                $logo_destination = '../../uploads/logos/' . $new_logo_name;
+
+                if (move_uploaded_file($logo_tmp, $logo_destination)) {
+                    // Delete old logo if exists
+                    if (!empty($logo_path) && file_exists('../../' . $logo_path)) {
+                        unlink('../../' . $logo_path);
+                    }
+
+                    $logo_path = 'uploads/logos/' . $new_logo_name;
+                } else {
+                    $error_messages[] = "فشل رفع الشعار.";
+                }
+            } else {
+                $error_messages[] = "امتداد الشعار غير مسموح به. فقط JPG، JPEG، PNG، GIF مسموح.";
+            }
+        } else {
+            $error_messages[] = "حجم الشعار يجب أن يكون أقل من 2MB.";
+        }
+    }
+
+    // Handle Background Image Upload
+    if (isset($_FILES['background']) && $_FILES['background']['error'] == UPLOAD_ERR_OK) {
+        if ($_FILES['background']['size'] <= $max_file_size) {
+            $background_tmp = $_FILES['background']['tmp_name'];
+            $background_name = basename($_FILES['background']['name']);
+            $background_ext = strtolower(pathinfo($background_name, PATHINFO_EXTENSION));
+
+            if (in_array($background_ext, $allowed_ext)) {
+                // Sanitize and generate unique file name
+                $unique_id = uniqid();
+                $new_background_name = 'background_' . $questionnaire_id . '_' . $unique_id . '.' . $background_ext;
+                $background_destination = '../../uploads/backgrounds/' . $new_background_name;
+
+                if (move_uploaded_file($background_tmp, $background_destination)) {
+                    // Delete old background if exists
+                    if (!empty($background_path) && file_exists('../../' . $background_path)) {
+                        unlink('../../' . $background_path);
+                    }
+
+                    $background_path = 'uploads/backgrounds/' . $new_background_name;
+                } else {
+                    $error_messages[] = "فشل رفع صورة الخلفية.";
+                }
+            } else {
+                $error_messages[] = "امتداد صورة الخلفية غير مسموح به. فقط JPG، JPEG، PNG، GIF مسموح.";
+            }
+        } else {
+            $error_messages[] = "حجم صورة الخلفية يجب أن يكون أقل من 2MB.";
+        }
+    }
+
+    // Update the questionnaire details in the database
+    $stmt = $pdo->prepare('UPDATE questionnaires SET title = ?, description = ?, logo_path = ?, background_path = ? WHERE questionnaire_id = ?');
+    $stmt->execute([$title, $description, $logo_path, $background_path, $questionnaire_id]);
 
     // Refresh page to show updated details
     header('Location: edit.php?id=' . $questionnaire_id);
@@ -47,6 +123,22 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_question'])) {
     exit();
 }
 
+// Process request to delete a question
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_question'])) {
+    $question_id = (int)$_POST['question_id'];
+    // Delete the question
+    $stmt = $pdo->prepare('DELETE FROM questions WHERE question_id = ? AND questionnaire_id = ?');
+    $stmt->execute([$question_id, $questionnaire_id]);
+
+    // Optionally, delete associated choices if question type is 'choice'
+    $stmt = $pdo->prepare('DELETE FROM choices WHERE question_id = ?');
+    $stmt->execute([$question_id]);
+
+    // Refresh page
+    header('Location: edit.php?id=' . $questionnaire_id);
+    exit();
+}
+
 // Fetch questions
 $stmt = $pdo->prepare('SELECT * FROM questions WHERE questionnaire_id = ?');
 $stmt->execute([$questionnaire_id]);
@@ -58,114 +150,96 @@ $questions = $stmt->fetchAll();
 <head>
     <meta charset="UTF-8">
     <title>تحرير الاستبيان</title>
-    <!-- Include Bootstrap CSS -->
+    
+    <!-- Bootstrap 4 CSS -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <!-- Custom Styles -->
+    
+    <!-- Font Awesome for Icons (Optional) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css">
+
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        /* Custom Styles for Image Previews */
+        .image-preview {
+            max-height: 100px;
+            margin: 10px auto;
+            display: block;
         }
-        .star-rating {
-            direction: rtl;
-            display: inline-block;
-        }
-        .star {
-            font-size: 24px;
-            color: #ddd;
-            cursor: pointer;
-        }
-        input[type="radio"] {
-            display: none;
-        }
-        input[type="radio"]:checked ~ .star {
-            color: #FFD700;
-        }
-        .question-slide {
-            margin-bottom: 20px;
-        }
-        .question-navigation {
-            text-align: center;
-            margin-top: 20px;
-        }
-        .dashboard-card {
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-            border: none;
-            text-align:right;
+
+        /* Ensure text is aligned to the right */
+        body, .card, .card-body, .form-group, label {
+            text-align: right;
         }
     </style>
 </head>
-<body>
+<body dir="rtl">
 
     <div class="container-fluid mt-5">
         <div class="row">
-            <!-- Sidebar (optional) -->
-            <!-- <div class="col-md-2">
-                <?php // include '../../includes/sidebar.php'; ?>
-            </div> -->
+            <!-- Main Content Column -->
             <div class="col-md-12">
                 <div class="card dashboard-card">
                     <div class="card-body">
-                        <h2 class="mb-4">تحرير الاستبيان</h2>
+                        <h2 class="mb-4 text-center">تحرير الاستبيان</h2>
 
-                        <!-- Questionnaire Details -->
+                        <!-- Display Error Messages -->
+                        <?php if (!empty($error_messages)): ?>
+                            <div class="alert alert-danger">
+                                <?php foreach ($error_messages as $message): ?>
+                                    <p><?php echo htmlspecialchars($message); ?></p>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <!-- Questionnaire Details Form -->
                         <div class="card mb-4">
                             <div class="card-header bg-primary text-white">
                                 تفاصيل الاستبيان
                             </div>
                             <div class="card-body">
-                                <form action="edit.php?id=<?php echo $questionnaire_id; ?>" method="post">
+                                <form action="edit.php?id=<?php echo $questionnaire_id; ?>" method="post" enctype="multipart/form-data">
+                                    <!-- Title Input -->
                                     <div class="form-group">
                                         <label for="title">العنوان</label>
                                         <input type="text" name="title" id="title" class="form-control" value="<?php echo htmlspecialchars($questionnaire['title']); ?>" required>
                                     </div>
+                                    <!-- Description Input -->
                                     <div class="form-group">
                                         <label for="description">الوصف</label>
                                         <textarea name="description" id="description" class="form-control" rows="3" required><?php echo htmlspecialchars($questionnaire['description']); ?></textarea>
                                     </div>
-                                    <button type="submit" name="update_details" class="btn btn-success">تحديث التفاصيل</button>
+
+                                    <!-- Logo Upload Input -->
+                                    <div class="form-group">
+                                        <label for="logo">الشعار</label>
+                                        <div class="custom-file">
+                                            <input type="file" name="logo" id="logo" class="custom-file-input" accept=".jpg, .jpeg, .png, .gif">
+                                            <label class="custom-file-label text-left" for="logo">اختر الشعار</label>
+                                        </div>
+                                        <?php if (!empty($questionnaire['logo_path']) && file_exists('../../' . $questionnaire['logo_path'])): ?>
+                                            <img src="<?php echo '../../' . htmlspecialchars($questionnaire['logo_path']); ?>" alt="Logo" class="image-preview">
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <!-- Background Image Upload Input -->
+                                    <div class="form-group">
+                                        <label for="background">صورة الخلفية</label>
+                                        <div class="custom-file">
+                                            <input type="file" name="background" id="background" class="custom-file-input" accept=".jpg, .jpeg, .png, .gif">
+                                            <label class="custom-file-label text-left" for="background">اختر صورة الخلفية</label>
+                                        </div>
+                                        <?php if (!empty($questionnaire['background_path']) && file_exists('../../' . $questionnaire['background_path'])): ?>
+                                            <img src="<?php echo '../../' . htmlspecialchars($questionnaire['background_path']); ?>" alt="Background" class="image-preview">
+                                        <?php endif; ?>
+                                    </div>
+
+                                    <button type="submit" name="update_details" class="btn btn-success mt-3">تحديث التفاصيل</button>
                                 </form>
                             </div>
                         </div>
 
-                        <!-- Questions Slider -->
+                        <!-- Add New Question Section -->
                         <div class="card mb-4">
-                            <div class="card-header bg-primary text-white">
-                                الأسئلة
-                            </div>
-                            <div class="card-body">
-                                <?php if (count($questions) > 0): ?>
-                                    <div id="question-slider">
-                                        <div class="question-container">
-                                            <?php foreach ($questions as $index => $question): ?>
-                                                <div class="question-slide" data-index="<?php echo $index; ?>" style="display: none;">
-                                                    <h4><?php echo htmlspecialchars($question['question_text']); ?></h4>
-                                                    <?php if ($question['question_type'] == 'stars'): ?>
-                                                        <div class="star-rating">
-                                                            <?php for ($i = 1; $i <= 10; $i++): ?>
-                                                                <input type="radio" id="star<?php echo $i; ?>_<?php echo $index; ?>" name="rating_<?php echo $index; ?>" value="<?php echo $i; ?>" />
-                                                                <label for="star<?php echo $i; ?>_<?php echo $index; ?>" class="star">&#9733;</label>
-                                                            <?php endfor; ?>
-                                                        </div>
-                                                    <?php elseif ($question['question_type'] == 'textarea'): ?>
-                                                        <textarea class="form-control" rows="3" placeholder="أدخل إجابتك هنا"></textarea>
-                                                    <?php endif; ?>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        </div>
-                                        <div class="question-navigation">
-                                            <button id="prev-btn" class="btn btn-secondary"><i class="fas fa-arrow-right"></i> السابق</button>
-                                            <button id="next-btn" class="btn btn-secondary">التالي <i class="fas fa-arrow-left"></i></button>
-                                        </div>
-                                    </div>
-                                <?php else: ?>
-                                    <p class="text-muted">لم يتم إضافة أسئلة بعد.</p>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-
-                        <!-- Add New Question -->
-                        <div class="card mb-4">
-                            <div class="card-header bg-primary text-white">
+                            <div class="card-header bg-secondary text-white">
                                 إضافة سؤال جديد
                             </div>
                             <div class="card-body">
@@ -177,16 +251,46 @@ $questions = $stmt->fetchAll();
                                     <div class="form-group">
                                         <label for="question_type">نوع السؤال</label>
                                         <select name="question_type" id="question_type" class="form-control" required>
-                                            <option value="stars">تقييم بالنجوم</option>
+                                            <option value="">اختر نوع السؤال</option>
+                                            <option value="text">نص</option>
                                             <option value="textarea">مساحة نص</option>
+                                            <option value="choice">اختيار من متعدد</option>
+                                            <option value="stars">تقييم بالنجوم</option>
                                         </select>
                                     </div>
-                                    <button type="submit" name="add_question" class="btn btn-primary">إضافة سؤال</button>
+                                    <button type="submit" name="add_question" class="btn btn-primary mt-3">إضافة سؤال</button>
                                 </form>
                             </div>
                         </div>
 
-                        <!-- Back Button -->
+                        <!-- Display Existing Questions with Delete Button -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-info text-white">
+                                الأسئلة الحالية
+                            </div>
+                            <div class="card-body">
+                                <?php if (count($questions) > 0): ?>
+                                    <ul class="list-group">
+                                        <?php foreach ($questions as $question): ?>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                <span>
+                                                    <?php echo htmlspecialchars($question['question_text']); ?> 
+                                                    <span class="badge badge-pill badge-secondary"><?php echo htmlspecialchars($question['question_type']); ?></span>
+                                                </span>
+                                                <form action="edit.php?id=<?php echo $questionnaire_id; ?>" method="post" onsubmit="return confirm('هل أنت متأكد من حذف هذا السؤال؟');">
+                                                    <input type="hidden" name="question_id" value="<?php echo $question['question_id']; ?>">
+                                                    <button type="submit" name="delete_question" class="btn btn-danger btn-sm">حذف</button>
+                                                </form>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                <?php else: ?>
+                                    <p class="text-muted text-right">لم يتم إضافة أسئلة بعد.</p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <!-- Back to List Button -->
                         <a href="../index.php" class="btn btn-link">العودة إلى قائمة الاستبيانات</a>
                     </div>
                 </div>
@@ -194,65 +298,24 @@ $questions = $stmt->fetchAll();
         </div>
     </div>
 
-    <?php include '../../includes/footer.php'; ?>
-    <!-- Include Bootstrap JS and dependencies -->
+    <!-- jQuery, Popper.js, and Bootstrap JS -->
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-    <!-- If you need Popper.js for Bootstrap tooltips and popovers -->
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
-    <!-- Include Bootstrap JS -->
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-    <!-- Font Awesome for icons (optional) -->
+
+    <!-- Font Awesome (Optional for Icons) -->
     <script src="https://kit.fontawesome.com/a076d05399.js"></script>
-    <!-- Custom Script -->
+
+    <!-- Custom Script to Update File Input Labels -->
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const slides = document.querySelectorAll('.question-slide');
-            let currentSlide = 0;
-
-            if (slides.length > 0) {
-                // Show the first slide
-                slides[currentSlide].style.display = 'block';
+        // File input label update for Bootstrap 4
+        $(".custom-file-input").on("change", function() {
+            var fileName = $(this).val().split("\\").pop();
+            if(fileName){
+                $(this).siblings(".custom-file-label").addClass("selected").html(fileName);
+            } else {
+                $(this).siblings(".custom-file-label").html("اختر ملف");
             }
-
-            // Function to show the current slide
-            function showSlide(index) {
-                slides.forEach((slide, i) => {
-                    slide.style.display = (i === index) ? 'block' : 'none';
-                });
-            }
-
-            // Next button functionality
-            document.getElementById('next-btn').addEventListener('click', function() {
-                if (currentSlide < slides.length - 1) {
-                    currentSlide++;
-                    showSlide(currentSlide);
-                }
-            });
-
-            // Previous button functionality
-            document.getElementById('prev-btn').addEventListener('click', function() {
-                if (currentSlide > 0) {
-                    currentSlide--;
-                    showSlide(currentSlide);
-                }
-            });
-
-            // Star rating functionality
-            const starLabels = document.querySelectorAll('.star');
-            starLabels.forEach(star => {
-                star.addEventListener('click', function() {
-                    const stars = this.parentElement.querySelectorAll('.star');
-                    stars.forEach(s => s.style.color = '#ddd');
-                    this.style.color = '#FFD700';
-                    let prevSibling = this.previousElementSibling;
-                    while(prevSibling) {
-                        if (prevSibling.tagName === 'LABEL') {
-                            prevSibling.style.color = '#FFD700';
-                        }
-                        prevSibling = prevSibling.previousElementSibling;
-                    }
-                });
-            });
         });
     </script>
 </body>

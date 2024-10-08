@@ -3,10 +3,10 @@
     ?>
     </main>
     
-    <footer class="bg-dark text-white py-3 mt-4">
+    <footer class="bg-dark text-white py-3">
         <div class="container text-center">
             <p>&copy; <?php echo date("Y"); ?> 
-        جميع الحقوق محفوظة 2024
+        جميع الحقوق محفوظة 
         </p>
         </div>
     </footer>
