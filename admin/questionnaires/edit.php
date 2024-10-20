@@ -1,6 +1,6 @@
 <?php
 // /admin/questionnaires/edit.php
-define('ALLOW_ACCESS', true); 
+define('ALLOW_ACCESS', true);
 include '../../includes/header.php';
 include '../../includes/db_connect.php';
 include '../../includes/functions.php';
@@ -30,6 +30,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_details'])) {
     // Sanitize inputs
     $title = sanitizeInput($_POST['title']);
     $description = sanitizeInput($_POST['description']);
+    $welcome = sanitizeInput($_POST['welcome']);
+    $thanks = sanitizeInput($_POST['thanks']);
+    $font_color = sanitizeInput($_POST['font_color']);
+
+    // Validate font_color (basic validation to ensure it's a hex color)
+    if (!preg_match('/^#[a-fA-F0-9]{6}$/', $font_color)) {
+        $error_messages[] = "الرجاء اختيار لون خط صحيح.";
+    }
 
     // Initialize variables for image paths
     $logo_path = $questionnaire['logo_path'];
@@ -101,13 +109,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_details'])) {
         }
     }
 
-    // Update the questionnaire details in the database
-    $stmt = $pdo->prepare('UPDATE questionnaires SET title = ?, description = ?, logo_path = ?, background_path = ? WHERE questionnaire_id = ?');
-    $stmt->execute([$title, $description, $logo_path, $background_path, $questionnaire_id]);
+    // Only proceed if there are no errors
+    if (empty($error_messages)) {
+        try {
+            // Begin transaction
+            $pdo->beginTransaction();
 
-    // Refresh page to show updated details
-    header('Location: edit.php?id=' . $questionnaire_id);
-    exit();
+            // Update the questionnaire details in the database, including welcome, thanks, and font_color
+            $stmt = $pdo->prepare('UPDATE questionnaires SET title = ?, description = ?, welcome = ?, thanks = ?, font_color = ?, logo_path = ?, background_path = ? WHERE questionnaire_id = ?');
+            $stmt->execute([$title, $description, $welcome, $thanks, $font_color, $logo_path, $background_path, $questionnaire_id]);
+
+            // Commit transaction
+            $pdo->commit();
+
+            // Refresh page to show updated details
+            header('Location: edit.php?id=' . $questionnaire_id);
+            exit();
+        } catch (PDOException $e) {
+            // Rollback transaction on error
+            $pdo->rollBack();
+            $error_messages[] = "حدث خطأ أثناء تحديث التفاصيل: " . $e->getMessage();
+        }
+    }
 }
 
 // Process form submission for adding new question
@@ -206,6 +229,25 @@ $questions = $stmt->fetchAll();
                                     <div class="form-group">
                                         <label for="description">الوصف</label>
                                         <textarea name="description" id="description" class="form-control" rows="3" required><?php echo htmlspecialchars($questionnaire['description']); ?></textarea>
+                                    </div>
+
+                                    <!-- Welcome Message Input -->
+                                    <div class="form-group">
+                                        <label for="welcome">رسالة الترحيب</label>
+                                        <textarea name="welcome" id="welcome" class="form-control" rows="3" required><?php echo htmlspecialchars($questionnaire['welcome']); ?></textarea>
+                                    </div>
+
+                                    <!-- Thank You Message Input -->
+                                    <div class="form-group">
+                                        <label for="thanks">رسالة الشكر</label>
+                                        <textarea name="thanks" id="thanks" class="form-control" rows="3" required><?php echo htmlspecialchars($questionnaire['thanks']); ?></textarea>
+                                    </div>
+
+                                    <!-- Font Color Picker -->
+                                    <div class="form-group">
+                                        <label for="font_color">لون الخط</label>
+                                        <input type="color" name="font_color" id="font_color" class="form-control" value="<?php echo htmlspecialchars($questionnaire['font_color']); ?>" required>
+                                        <small class="form-text text-muted">اختر لوناً مناسباً للخط.</small>
                                     </div>
 
                                     <!-- Logo Upload Input -->
