@@ -138,12 +138,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_question'])) {
     $question_text = sanitizeInput($_POST['question_text']);
     $question_type = sanitizeInput($_POST['question_type']);
 
-    $stmt = $pdo->prepare('INSERT INTO questions (questionnaire_id, question_text, question_type) VALUES (?, ?, ?)');
-    $stmt->execute([$questionnaire_id, $question_text, $question_type]);
+    try {
+        $pdo->beginTransaction();
 
-    // Refresh page to show new question
-    header('Location: edit.php?id=' . $questionnaire_id);
-    exit();
+        // Insert the question
+        $stmt = $pdo->prepare('INSERT INTO questions (questionnaire_id, question_text, question_type) VALUES (?, ?, ?)');
+        $stmt->execute([$questionnaire_id, $question_text, $question_type]);
+        $question_id = $pdo->lastInsertId();
+
+        // If it's a multiple choice question, insert the choices
+        if ($question_type === 'choice' && isset($_POST['choices']) && is_array($_POST['choices'])) {
+            $stmt = $pdo->prepare('INSERT INTO choices (question_id, choice_text) VALUES (?, ?)');
+            foreach ($_POST['choices'] as $choice) {
+                if (!empty(trim($choice))) {
+                    $stmt->execute([$question_id, sanitizeInput($choice)]);
+                }
+            }
+        }
+
+        $pdo->commit();
+        header('Location: edit.php?id=' . $questionnaire_id);
+        exit();
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        $error_messages[] = "حدث خطأ أثناء إضافة السؤال: " . $e->getMessage();
+    }
 }
 
 // Process request to delete a question
@@ -163,9 +182,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_question'])) {
 }
 
 // Fetch questions
-$stmt = $pdo->prepare('SELECT * FROM questions WHERE questionnaire_id = ?');
+$stmt = $pdo->prepare('
+    SELECT q.*, GROUP_CONCAT(c.choice_text) as choices 
+    FROM questions q 
+    LEFT JOIN choices c ON q.question_id = c.question_id 
+    WHERE q.questionnaire_id = ? 
+    GROUP BY q.question_id
+');
 $stmt->execute([$questionnaire_id]);
 $questions = $stmt->fetchAll();
+
 ?>
 
 <!DOCTYPE html>
@@ -179,7 +205,7 @@ $questions = $stmt->fetchAll();
     
     <!-- Font Awesome for Icons (Optional) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css">
-
+    <link rel="stylesheet" href="../../assets/css/styles.css">
     <style>
         /* Custom Styles for Image Previews */
         .image-preview {
@@ -285,7 +311,7 @@ $questions = $stmt->fetchAll();
                                 إضافة سؤال جديد
                             </div>
                             <div class="card-body">
-                                <form action="edit.php?id=<?php echo $questionnaire_id; ?>" method="post">
+                                <form action="edit.php?id=<?php echo $questionnaire_id; ?>" method="post" id="questionForm">
                                     <div class="form-group">
                                         <label for="question_text">نص السؤال</label>
                                         <input type="text" name="question_text" id="question_text" class="form-control" required>
@@ -294,43 +320,109 @@ $questions = $stmt->fetchAll();
                                         <label for="question_type">نوع السؤال</label>
                                         <select name="question_type" id="question_type" class="form-control" required>
                                             <option value="">اختر نوع السؤال</option>
-                                            <option value="text">نص</option>
                                             <option value="textarea">مساحة نص</option>
                                             <option value="choice">اختيار من متعدد</option>
                                             <option value="stars">تقييم بالنجوم</option>
                                         </select>
                                     </div>
+                                    
+                                    <!-- Multiple Choice Options (initially hidden) -->
+                                    <div id="choicesSection" style="display: none;">
+                                        <div class="form-group">
+                                            <label>خيارات الإجابة</label>
+                                            <div id="choicesContainer">
+                                                <div class="input-group mb-2">
+                                                    <input type="text" name="choices[]" class="form-control" placeholder="أدخل الخيار">
+                                                    <div class="input-group-append">
+                                                        <button type="button" class="btn btn-danger remove-choice" onclick="removeChoice(this)">حذف</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button type="button" class="btn btn-secondary" onclick="addChoice()">إضافة خيار</button>
+                                        </div>
+                                    </div>
+                                    
                                     <button type="submit" name="add_question" class="btn btn-primary mt-3">إضافة سؤال</button>
                                 </form>
                             </div>
                         </div>
 
+
                         <!-- Display Existing Questions with Delete Button -->
-                        <div class="card mb-4">
-                            <div class="card-header bg-info text-white">
-                                الأسئلة الحالية
+                            <div class="card mb-4">
+                                <div class="card-header bg-info text-white">
+                                    الأسئلة الحالية
+                                </div>
+                                <div class="card-body">
+                                    <?php if (count($questions) > 0): ?>
+                                        <div class="accordion" id="questionsAccordion">
+                                            <?php foreach ($questions as $index => $question): ?>
+                                                <div class="list-group-item">
+                                                    <div class="d-flex justify-content-between align-items-center">
+                                                        <div class="flex-grow-1">
+                                                            <?php if ($question['question_type'] === 'choice'): ?>
+                                                                <a class="text-decoration-none text-dark" data-toggle="collapse" 
+                                                                href="#collapse<?php echo $question['question_id']; ?>" 
+                                                                aria-expanded="false">
+                                                                    <i class="fas fa-chevron-down mr-2"></i>
+                                                                    <?php echo htmlspecialchars($question['question_text']); ?>
+                                                                    <span class="badge badge-pill badge-secondary">اختيارات</span>
+                                                                </a>
+                                                            <?php else: ?>
+                                                                <span>
+                                                                    <?php echo htmlspecialchars($question['question_text']); ?>
+                                                                    <span class="badge badge-pill badge-secondary">
+                                                                        <?php 
+                                                                        switch($question['question_type']) {
+                                                                            case 'textarea':
+                                                                                echo 'مساحة نص';
+                                                                                break;
+                                                                            case 'stars':
+                                                                                echo 'نجوم';
+                                                                                break;
+                                                                            default:
+                                                                                echo htmlspecialchars($question['question_type']);
+                                                                        }
+                                                                        ?>
+                                                                    </span>
+                                                                </span>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                        <form action="edit.php?id=<?php echo $questionnaire_id; ?>" method="post" 
+                                                            onsubmit="return confirm('هل أنت متأكد من حذف هذا السؤال؟');">
+                                                            <input type="hidden" name="question_id" value="<?php echo $question['question_id']; ?>">
+                                                            <button type="submit" name="delete_question" class="btn btn-danger btn-sm">حذف</button>
+                                                        </form>
+                                                    </div>
+                                                    
+                                                    <?php if ($question['question_type'] === 'choice' && !empty($question['choices'])): ?>
+                                                        <div id="collapse<?php echo $question['question_id']; ?>" 
+                                                            class="collapse mt-3" 
+                                                            data-parent="#questionsAccordion">
+                                                            <div class="card card-body bg-light">
+                                                                <h6>الخيارات:</h6>
+                                                                <ul class="list-unstyled mb-0">
+                                                                    <?php 
+                                                                    $choices = explode(',', $question['choices']);
+                                                                    foreach ($choices as $choice): 
+                                                                    ?>
+                                                                        <li class="mb-2">
+                                                                            <i class="fas fa-circle fa-sm mr-2"></i>
+                                                                            <?php echo htmlspecialchars($choice); ?>
+                                                                        </li>
+                                                                    <?php endforeach; ?>
+                                                                </ul>
+                                                            </div>
+                                                        </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <p class="text-muted text-right">لم يتم إضافة أسئلة بعد.</p>
+                                    <?php endif; ?>
+                                </div>
                             </div>
-                            <div class="card-body">
-                                <?php if (count($questions) > 0): ?>
-                                    <ul class="list-group">
-                                        <?php foreach ($questions as $question): ?>
-                                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                                <span>
-                                                    <?php echo htmlspecialchars($question['question_text']); ?> 
-                                                    <span class="badge badge-pill badge-secondary"><?php echo htmlspecialchars($question['question_type']); ?></span>
-                                                </span>
-                                                <form action="edit.php?id=<?php echo $questionnaire_id; ?>" method="post" onsubmit="return confirm('هل أنت متأكد من حذف هذا السؤال؟');">
-                                                    <input type="hidden" name="question_id" value="<?php echo $question['question_id']; ?>">
-                                                    <button type="submit" name="delete_question" class="btn btn-danger btn-sm">حذف</button>
-                                                </form>
-                                            </li>
-                                        <?php endforeach; ?>
-                                    </ul>
-                                <?php else: ?>
-                                    <p class="text-muted text-right">لم يتم إضافة أسئلة بعد.</p>
-                                <?php endif; ?>
-                            </div>
-                        </div>
 
                         <!-- Back to List Button -->
                         <a href="../index.php" class="btn btn-link">العودة إلى قائمة الاستبيانات</a>
@@ -359,6 +451,55 @@ $questions = $stmt->fetchAll();
                 $(this).siblings(".custom-file-label").html("اختر ملف");
             }
         });
+
+
+
+          // Show/hide choices section based on question type
+    document.getElementById('question_type').addEventListener('change', function() {
+        const choicesSection = document.getElementById('choicesSection');
+        if (this.value === 'choice') {
+            choicesSection.style.display = 'block';
+        } else {
+            choicesSection.style.display = 'none';
+        }
+    });
+
+    // Function to add new choice input
+    function addChoice() {
+        const container = document.getElementById('choicesContainer');
+        const newChoice = document.createElement('div');
+        newChoice.className = 'input-group mb-2';
+        newChoice.innerHTML = `
+            <input type="text" name="choices[]" class="form-control" placeholder="أدخل الخيار">
+            <div class="input-group-append">
+                <button type="button" class="btn btn-danger remove-choice" onclick="removeChoice(this)">حذف</button>
+            </div>
+        `;
+        container.appendChild(newChoice);
+    }
+
+    // Function to remove choice input
+    function removeChoice(button) {
+        button.closest('.input-group').remove();
+    }
+
+    // Form validation
+    document.getElementById('questionForm').addEventListener('submit', function(e) {
+        const questionType = document.getElementById('question_type').value;
+        if (questionType === 'choice') {
+            const choices = document.getElementsByName('choices[]');
+            let validChoices = 0;
+            for (let choice of choices) {
+                if (choice.value.trim() !== '') {
+                    validChoices++;
+                }
+            }
+            if (validChoices < 2) {
+                e.preventDefault();
+                alert('يجب إضافة خيارين على الأقل للسؤال متعدد الخيارات');
+            }
+        }
+    });
     </script>
 </body>
 </html>

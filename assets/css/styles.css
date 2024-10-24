@@ -8,18 +8,21 @@
 }
 @font-face {
     font-family: 'CustomFont';
-    src: url('../fonts/zain_font.ttf') format('truetype');
+    src: url('../fonts/zain_font.otf') format('truetype');
   }
 /* Typography */
 body {
-    font-family: 'CustomFont', sans-serif;
+    font-family: 'CustomFont', sans-serif !important;
     font-variant-numeric: normal;
     line-height: 1.6;
     background-color: #f8f9fa;
     color: #343a40;
 }
-body *:not(:has(:not([class*="number"]))) {
-    font-family: 'Arial', sans-serif; /* Fallback for numbers */
+/* body *:not(:has(:not([class*="number"]))) {
+    font-family: 'Arial', sans-serif; 
+} */
+td, .card-header {
+    font-family: 'CustomFont', sans-serif ;
 }
 
 h1, h2, h3 {
@@ -131,4 +134,30 @@ footer {
     .navbar-brand {
         font-size: 20px;
     }
+}
+
+
+
+/* drop down arrow in the multiple choices slider*/
+.collapse {
+    transition: all 0.3s ease;
+}
+
+.list-group-item {
+    border-radius: 0.25rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid rgba(0,0,0,.125);
+}
+
+.fa-chevron-down {
+    transition: transform 0.3s ease;
+}
+
+[aria-expanded="true"] .fa-chevron-down {
+    transform: rotate(180deg);
+}
+
+.card-body .bg-light {
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
 }

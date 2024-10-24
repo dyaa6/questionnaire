@@ -73,6 +73,7 @@ if (isset($_GET['msg']) && $_GET['msg'] == 'deleted') {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>لوحة التحكم - برنامج الاستبيان</title>
 
+ 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
 
@@ -87,7 +88,7 @@ if (isset($_GET['msg']) && $_GET['msg'] == 'deleted') {
 
 <!-- Updated Navigation Menu -->
 
-<nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
+<nav class="navbar navbar-expand-lg navbar-light bg-light mb-4 d-md-none">
     <div class="container-fluid">
         <a class="navbar-brand" href="/index.php">برنامج الاستبيان</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarAdmin" aria-controls="navbarAdmin" aria-expanded="false" aria-label="Toggle navigation">
@@ -118,6 +119,7 @@ if (isset($_GET['msg']) && $_GET['msg'] == 'deleted') {
         </div>
     </div>
 </nav>
+
 <main class="container">
 
 
@@ -322,9 +324,6 @@ if (isset($_GET['msg']) && $_GET['msg'] == 'deleted') {
 
 <!-- Include the footer file -->
 <?php include '../includes/footer.php'; ?>
-
-<!-- Include Bootstrap JS and dependencies -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 </body>
 </html>

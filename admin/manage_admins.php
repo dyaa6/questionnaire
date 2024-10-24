@@ -192,8 +192,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_admin'])) {
     include '../includes/footer.php';
     ?>
 
-    <!-- Include Bootstrap JS and dependencies -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Include Font Awesome JS (Optional if not included in header.php) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
 </body>
