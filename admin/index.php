@@ -102,11 +102,11 @@ if (isset($_GET['msg']) && $_GET['msg'] == 'deleted') {
                 <li class="nav-item">
                     <a class="nav-link" href="questionnaires/create.php">إنشاء استبيان جديد</a>
                 </li>
-                <li class="nav-item">
+                <!-- <li class="nav-item">
                     <a class="nav-link" href="manage_admins.php">
                                     إدارة الحسابات
                     </a>
-                </li>
+                </li> -->
                 <li class="nav-item">
                     <a class="nav-link" href="responses/index.php">الردود</a>
                 </li>
@@ -161,12 +161,12 @@ if (isset($_GET['msg']) && $_GET['msg'] == 'deleted') {
                             </a>
                         </li>
                         
-                        <li class="nav-item">
+                        <!-- <li class="nav-item">
                             <a class="nav-link" href="manage_admins.php">
                                 <i class="bi bi-person-fill"></i>
                                     إدارة الحسابات
                             </a>
-                        </li>
+                        </li> -->
                         
                         <li class="nav-item">
                             <a class="nav-link" href="responses/index.php">

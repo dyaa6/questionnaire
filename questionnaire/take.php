@@ -82,7 +82,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_survey'])) {
     }
 }
 ?>
-
 <?php
 // /includes/header.php
 
@@ -91,6 +90,18 @@ if (!defined('ALLOW_ACCESS')) {
 }
 
 // Session already started above
+
+// Set background style
+if (!empty($questionnaire['background_color'])) {
+    // User has selected a background color
+    $background_style = "background-color: " . htmlspecialchars($questionnaire['background_color']) . ";";
+} elseif (!empty($questionnaire['background_path'])) {
+    // User has provided a background image
+    $background_style = "background-image: url('" . "../" . htmlspecialchars($questionnaire['background_path']) . "'); background-size: cover; background-repeat: no-repeat; background-position: center;";
+} else {
+    // Use default background image
+    $background_style = "background-image: url('../assets/images/default-background.jpg'); background-size: cover; background-repeat: no-repeat; background-position: center;";
+}
 ?>
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -109,16 +120,9 @@ if (!defined('ALLOW_ACCESS')) {
     <link rel="stylesheet" href="../assets/css/styles.css">
 
     <style>
-        /* Dynamic Background Image */
+        /* Dynamic Background Style */
         .cover {
-            <?php if (!empty($questionnaire['background_path'])): ?>
-                background-image: url('<?php echo "../" . htmlspecialchars($questionnaire['background_path']); ?>');
-            <?php else: ?>
-                background-image: url('../assets/images/default-background.jpg'); /* Ensure you have a default background image */
-            <?php endif; ?>;
-            background-size: cover;
-            background-repeat: no-repeat;
-            background-position: center;
+            <?php echo $background_style; ?>
             min-height: 100vh; /* Ensure it covers the viewport height */
             margin:0px;
             display:flex;
@@ -138,7 +142,7 @@ if (!defined('ALLOW_ACCESS')) {
 
         /* Additional Custom Styles */
         .take-container {
-            background-color: <?php 
+            background-color: <?php
         $color = htmlspecialchars($questionnaire['font_color']);
         // Convert hex to rgb values
         $rgb = sscanf($color, "#%02x%02x%02x");
@@ -152,9 +156,9 @@ if (!defined('ALLOW_ACCESS')) {
         }
 
         /* Apply Selected Font Color */
-            body, .card, .card-body, .form-group, .card-title, .card-text {
-                color: <?php echo htmlspecialchars($questionnaire['font_color']); ?> !important;
-            }
+        body, .card, .card-body, .form-group, .card-title, .card-text {
+            color: <?php echo htmlspecialchars($questionnaire['font_color']); ?> !important;
+        }
 
         /* Star Rating Styling */
         .star-rating .form-check-label {
@@ -185,80 +189,80 @@ if (!defined('ALLOW_ACCESS')) {
            background: rgba(255, 255, 255, 0.95) !important;
         }
 
-            /* Responsive star rating styles */
-    .star-rating-container {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 100%;
-        max-width: 500px;
-        margin: 0 auto;
-        flex-wrap:wrap;
-    }
-
-    .star-rating {
-        display: flex !important;
-        justify-content: center;
-        flex: 1;
-        margin: 0 10px;
-    }
-
-    .star-rating .form-check {
-        margin: 0;
-        padding: 0;
-        flex: 1;
-    }
-
-    .star-rating .form-check-label {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        cursor: pointer;
-        color: #aaa;
-        font-size: calc(1rem + 1vw);
-        transition: color 0.2s, transform 0.2s;
-    }
-
-    .star-rating .form-check-input:checked ~ .form-check-label,
-    .star-rating .form-check-input:focus ~ .form-check-label,
-    .star-rating .form-check-input:checked + .form-check-label,
-    .star-rating .form-check-input:focus + .form-check-label {
-        color: #ffc107;
-    }
-
-    .rating-label {
-        white-space: nowrap;
-        font-weight: bold;
-        font-size: calc(0.8rem + 0.5vw);
-    }
-
-    /* Hover effect */
-    .star-rating .form-check-label:hover {
-        transform: scale(1.1);
-    }
-
-    @media (max-width: 576px) {
+        /* Responsive star rating styles */
         .star-rating-container {
-            flex-direction: column;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            flex-wrap:wrap;
         }
+
+        .star-rating {
+            display: flex !important;
+            justify-content: center;
+            flex: 1;
+            margin: 0 10px;
+        }
+
+        .star-rating .form-check {
+            margin: 0;
+            padding: 0;
+            flex: 1;
+        }
+
+        .star-rating .form-check-label {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            color: #aaa;
+            font-size: calc(1rem + 1vw);
+            transition: color 0.2s, transform 0.2s;
+        }
+
+        .star-rating .form-check-input:checked ~ .form-check-label,
+        .star-rating .form-check-input:focus ~ .form-check-label,
+        .star-rating .form-check-input:checked + .form-check-label,
+        .star-rating .form-check-input:focus + .form-check-label {
+            color: #ffc107;
+        }
+
         .rating-label {
-            margin: 5px 0;
+            white-space: nowrap;
+            font-weight: bold;
+            font-size: calc(0.8rem + 0.5vw);
         }
-    }
 
-    /* Welcome and Thank You Styles */
-    .message-container {
-        display: none; /* Hidden by default */
-        text-align: center;
-    }
+        /* Hover effect */
+        .star-rating .form-check-label:hover {
+            transform: scale(1.1);
+        }
 
-    .message-container.active {
-        display: block;
-    }
+        @media (max-width: 576px) {
+            .star-rating-container {
+                flex-direction: column;
+            }
+            .rating-label {
+                margin: 5px 0;
+            }
+        }
 
-    .message-container button {
-        margin-top: 20px;
-    }
+        /* Welcome and Thank You Styles */
+        .message-container {
+            display: none; /* Hidden by default */
+            text-align: center;
+        }
+
+        .message-container.active {
+            display: block;
+        }
+
+        .message-container button {
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
@@ -266,7 +270,7 @@ if (!defined('ALLOW_ACCESS')) {
 <main class="cover">
 
     <div class="container take-container" dir="rtl">
-        
+
         <!-- Display Error Messages -->
         <?php if (!empty($errors)): ?>
             <div class="alert alert-danger">
@@ -349,17 +353,31 @@ if (!defined('ALLOW_ACCESS')) {
                                                 $stmt_choices = $pdo->prepare('SELECT * FROM choices WHERE question_id = ?');
                                                 $stmt_choices->execute([$question['question_id']]);
                                                 $choices = $stmt_choices->fetchAll();
+
+                                                // Get the questionnaire font color and create rgba version
+                                                $color = htmlspecialchars($questionnaire['font_color']);
+                                                $rgb = sscanf($color, "#%02x%02x%02x");
+                                                $rgba_bg = "rgba({$rgb[0]}, {$rgb[1]}, {$rgb[2]}, 0.05)";
                                             ?>
-                                            <?php foreach ($choices as $choice): ?>
-                                                <div class="form-check">
-                                                    <input class="form-check-input" type="radio" name="answers[<?php echo $question['question_id']; ?>]" value="<?php echo htmlspecialchars($choice['choice_text']); ?>" id="choice<?php echo $question['question_id'] . '_' . $choice['choice_id']; ?>" required>
-                                                    <label class="form-check-label" for="choice<?php echo $question['question_id'] . '_' . $choice['choice_id']; ?>">
-                                                        <?php echo htmlspecialchars($choice['choice_text']); ?>
-                                                    </label>
+                                            <div class="choices-container">
+                                                <?php foreach ($choices as $choice): ?>
+                                                    <div class="choice-wrapper">
+                                                        <input class="choice-input" type="radio"
+                                                               name="answers[<?php echo $question['question_id']; ?>]"
+                                                               value="<?php echo $choice['choice_id']; ?>"
+                                                               id="choice<?php echo $question['question_id'] . '_' . $choice['choice_id']; ?>"
+                                                               required>
+                                                        <label class="choice-label"
+                                                               for="choice<?php echo $question['question_id'] . '_' . $choice['choice_id']; ?>"
+                                                               style="--font-color: <?php echo $color; ?>; --bg-color: <?php echo $rgba_bg; ?>">
+                                                            <div class="choice-radio"></div>
+                                                            <span class="choice-text"><?php echo htmlspecialchars($choice['choice_text']); ?></span>
+                                                        </label>
+                                                    </div>
+                                                <?php endforeach; ?>
+                                                <div class="invalid-feedback">
+                                                    الرجاء اختيار خيار.
                                                 </div>
-                                            <?php endforeach; ?>
-                                            <div class="invalid-feedback">
-                                                الرجاء اختيار خيار.
                                             </div>
                                         <?php elseif ($question['question_type'] == 'stars'): ?>
                                             <div class="star-rating-container">
@@ -426,6 +444,149 @@ if (!defined('ALLOW_ACCESS')) {
         <?php endif; ?>
 
     </div>
+
+
+    <!-- Enhanced Multiple Choice Styling with Dynamic Colors -->
+    <style>
+        .choices-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .choice-wrapper {
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .choice-input {
+            position: absolute;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .choice-label {
+            display: flex;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            background-color: rgba(255, 255, 255, 0.9);
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 0;
+            gap: 1rem;
+        }
+
+        .choice-radio {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #cbd5e0;
+            border-radius: 50%;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .choice-radio::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            width: 12px;
+            height: 12px;
+            background-color: var(--font-color);
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+
+        .choice-text {
+            flex: 1;
+            font-size: 1rem;
+            color: #4a5568;
+            transition: all 0.3s ease;
+        }
+
+        /* Hover State */
+        .choice-label:hover {
+            border-color: var(--font-color);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transform: translateY(-1px);
+        }
+
+        .choice-label:hover .choice-radio {
+            border-color: var(--font-color);
+        }
+
+        /* Selected State */
+        .choice-input:checked + .choice-label {
+            border-color: var(--font-color);
+            background-color: var(--bg-color);
+        }
+
+        .choice-input:checked + .choice-label .choice-radio {
+            border-color: var(--font-color);
+        }
+
+        .choice-input:checked + .choice-label .choice-radio::after {
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .choice-input:checked + .choice-label .choice-text {
+            color: var(--font-color);
+            font-weight: 500;
+        }
+
+        /* Focus State */
+        .choice-input:focus + .choice-label {
+            outline: 2px solid var(--font-color);
+            outline-offset: 2px;
+        }
+
+        /* Error State */
+        .choice-input.is-invalid + .choice-label {
+            border-color: #dc3545;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .choice-label {
+                padding: 0.75rem 1rem;
+            }
+
+            .choice-radio {
+                width: 20px;
+                height: 20px;
+            }
+
+            .choice-radio::after {
+                width: 10px;
+                height: 10px;
+            }
+
+            .choice-text {
+                font-size: 0.9rem;
+            }
+        }
+
+        /* Animation for selection */
+        @keyframes selectChoice {
+            0% {
+                transform: scale(0.95);
+            }
+            50% {
+                transform: scale(1.02);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .choice-input:checked + .choice-label {
+            animation: selectChoice 0.3s ease forwards;
+        }
+    </style>
 
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -613,11 +774,6 @@ if (!defined('ALLOW_ACCESS')) {
             <?php endif; ?>
         });
     </script>
-
-    <?php
-    // include '../includes/footer.php';
-    ?>
-
 </main>
 
 </body>

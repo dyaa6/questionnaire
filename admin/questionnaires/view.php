@@ -17,7 +17,8 @@ if (isset($_GET['id'])) {
     $limit = !empty($_GET['limit']) ? (int)$_GET['limit'] : null;
 
     // Validate filter_type
-    $valid_filter_types = ['all', 'period', 'limit'];
+    // Add the new filter types to the valid_filter_types array
+    $valid_filter_types = ['all', 'period', 'limit', 'today', 'yesterday', 'last_week'];
     if (!in_array($filter_type, $valid_filter_types)) {
         $filter_type = 'all';
     }
@@ -63,28 +64,53 @@ if (isset($_GET['id'])) {
         $stmt->execute([$questionnaire_id, $limit]);
         $responses = $stmt->fetchAll(PDO::FETCH_COLUMN);
         $response_ids = $responses ? $responses : [];
+    } elseif ($filter_type === 'today') {
+        // Handle 'today' filter
+        $today = date('Y-m-d');
+        // Fetch response IDs submitted today
+        $stmt = $pdo->prepare('SELECT response_id FROM responses WHERE questionnaire_id = ? AND submitted_at BETWEEN ? AND ? ORDER BY submitted_at DESC');
+        $stmt->execute([$questionnaire_id, $today . ' 00:00:00', $today . ' 23:59:59']);
+        $responses = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $response_ids = $responses ? $responses : [];
+    } elseif ($filter_type === 'yesterday') {
+        // Handle 'yesterday' filter
+        $yesterday = date('Y-m-d', strtotime('yesterday'));
+        // Fetch response IDs submitted yesterday
+        $stmt = $pdo->prepare('SELECT response_id FROM responses WHERE questionnaire_id = ? AND submitted_at BETWEEN ? AND ? ORDER BY submitted_at DESC');
+        $stmt->execute([$questionnaire_id, $yesterday . ' 00:00:00', $yesterday . ' 23:59:59']);
+        $responses = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $response_ids = $responses ? $responses : [];
+    } elseif ($filter_type === 'last_week') {
+        // Handle 'last_week' filter
+        $start_date = date('Y-m-d', strtotime('-7 days'));
+        $today = date('Y-m-d');
+        // Fetch response IDs submitted in the last 7 days including today
+        $stmt = $pdo->prepare('SELECT response_id FROM responses WHERE questionnaire_id = ? AND submitted_at BETWEEN ? AND ? ORDER BY submitted_at DESC');
+        $stmt->execute([$questionnaire_id, $start_date . ' 00:00:00', $today . ' 23:59:59']);
+        $responses = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $response_ids = $responses ? $responses : [];
     }
 
     // Depending on filter_type, prepare the SQL condition for answers
     $apply_filters = false;
     $sql_filter = '';
 
-    if ($filter_type === 'period' && !empty($response_ids)) {
+    if (in_array($filter_type, ['period', 'limit', 'today', 'yesterday', 'last_week'])) {
         $apply_filters = true;
-        // Use IN clause to filter by response_ids
-        // To prevent SQL injection with variable number of parameters, use placeholders
-        $in_placeholders = implode(',', array_fill(0, count($response_ids), '?'));
-        $sql_filter = "AND a.response_id IN ($in_placeholders)";
-    } elseif ($filter_type === 'limit' && !empty($response_ids)) {
-        $apply_filters = true;
-        // Use IN clause to filter by response_ids
-        $in_placeholders = implode(',', array_fill(0, count($response_ids), '?'));
-        $sql_filter = "AND a.response_id IN ($in_placeholders)";
+        if (!empty($response_ids)) {
+            // Use IN clause to filter by response_ids
+            $in_placeholders = implode(',', array_fill(0, count($response_ids), '?'));
+            $sql_filter = "AND a.response_id IN ($in_placeholders)";
+        } else {
+            // No responses matching the filter, set condition that evaluates to false
+            $sql_filter = "AND 1=0";
+        }
     }
 
     // For each question, fetch answers and collect data
     $chartData = [];
     $textAnswers = [];
+    $hasResponses = false; // Flag to check if there are any responses
 
     foreach ($questions as &$question) {
         // Build the SQL query with possible filters
@@ -96,17 +122,21 @@ if (isset($_GET['id'])) {
         // Apply filters if any
         if ($apply_filters) {
             $sql .= $sql_filter;
-            $params = array_merge($params, $response_ids);
+            if (!empty($response_ids)) {
+                $params = array_merge($params, $response_ids);
+            }
         }
 
         // Order by submission date descending
         $sql .= ' ORDER BY r.submitted_at DESC';
 
-        // Apply limit if 'all' is selected; Since 'limit' is already handled via response IDs, no need here
-
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
         $question['answers'] = $stmt->fetchAll();
+
+        if (!empty($question['answers'])) {
+            $hasResponses = true; // Set the flag if any answers are found
+        }
 
         if ($question['question_type'] == 'stars') {
             // Prepare data for star rating questions
@@ -117,12 +147,51 @@ if (isset($_GET['id'])) {
                     $ratings[$rating]++;
                 }
             }
-            $chartData[$question['question_id']] = $ratings;
-        } elseif ($question['question_type'] == 'textarea') {
-            // Collect text answers for display at the end
+            $chartData[$question['question_id']] = [
+                'question_text' => $question['question_text'],
+                'type' => 'stars',
+                'data' => $ratings
+            ];
+        } elseif ($question['question_type'] == 'textarea' || $question['question_type'] == 'text') {
+            // Collect text answers for display
             $textAnswers[] = [
                 'question_text' => $question['question_text'],
                 'answers' => $question['answers']
+            ];
+        } elseif ($question['question_type'] == 'choice') {
+            // Fetch choices for this question
+            $stmtChoices = $pdo->prepare('SELECT * FROM choices WHERE question_id = ?');
+            $stmtChoices->execute([$question['question_id']]);
+            $choices = $stmtChoices->fetchAll(PDO::FETCH_ASSOC);
+
+            // Initialize counts
+            $choiceCounts = [];
+            $choiceTextById = [];
+            foreach ($choices as $choice) {
+                $choiceCounts[$choice['choice_id']] = 0;
+                $choiceTextById[$choice['choice_id']] = $choice['choice_text'];
+            }
+
+            // Count the number of times each choice was selected
+            foreach ($question['answers'] as $answer) {
+                $selectedChoiceId = (int)$answer['answer_text']; // answer_text contains choice_id
+                if (array_key_exists($selectedChoiceId, $choiceCounts)) {
+                    $choiceCounts[$selectedChoiceId]++;
+                }
+            }
+
+            // Map counts to choice texts
+            $choiceCountsWithText = [];
+            foreach ($choiceCounts as $choiceId => $count) {
+                $choiceText = isset($choiceTextById[$choiceId]) ? $choiceTextById[$choiceId] : 'غير معروف';
+                $choiceCountsWithText[$choiceText] = $count;
+            }
+
+            // Prepare data for chart
+            $chartData[$question['question_id']] = [
+                'question_text' => $question['question_text'],
+                'type' => 'choice',
+                'data' => $choiceCountsWithText
             ];
         }
     }
@@ -150,6 +219,26 @@ if (isset($_GET['id'])) {
                         عرض كل الردود
                     </label>
                 </div>
+                <!-- Add new filter options here -->
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="filter_type" id="filter_today" value="today" <?php echo ($filter_type == 'today') ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="filter_today">
+                        عرض ردود اليوم
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="filter_type" id="filter_yesterday" value="yesterday" <?php echo ($filter_type == 'yesterday') ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="filter_yesterday">
+                        عرض ردود الأمس
+                    </label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="filter_type" id="filter_last_week" value="last_week" <?php echo ($filter_type == 'last_week') ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="filter_last_week">
+                        عرض ردود آخر أسبوع
+                    </label>
+                </div>
+                <!-- Existing filters -->
                 <div class="form-check">
                     <input class="form-check-input" type="radio" name="filter_type" id="filter_period" value="period" <?php echo ($filter_type == 'period') ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="filter_period">
@@ -185,76 +274,144 @@ if (isset($_GET['id'])) {
             <button type="submit" class="btn btn-primary">تطبيق الفلاتر</button>
         </form>
         <br>
-        <!-- Modified Tabs -->
-        <ul class="nav nav-tabs mb-4 flex-column flex-sm-row" id="chartTypeTabs" role="tablist">
-            <li class="nav-item flex-sm-fill text-sm-center" role="presentation">
-                <button class="nav-link active" id="bar-tab" data-bs-toggle="tab" data-chart-type="bar" type="button" role="tab" aria-controls="bar" aria-selected="true">الرسم البياني العمودي</button>
-            </li>
-            <li class="nav-item flex-sm-fill text-sm-center" role="presentation">
-                <button class="nav-link" id="pie-tab" data-bs-toggle="tab" data-chart-type="pie" type="button" role="tab" aria-controls="pie" aria-selected="false">الرسم البياني الدائري</button>
-            </li>
-            <li class="nav-item flex-sm-fill text-sm-center" role="presentation">
-                <button class="nav-link" id="line-tab" data-bs-toggle="tab" data-chart-type="line" type="button" role="tab" aria-controls="line" aria-selected="false">الرسم البياني الخطي</button>
-            </li>
-        </ul>
 
-        <?php foreach ($questions as $question): ?>
-            <?php if ($question['question_type'] == 'stars'): ?>
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <h5 class="card-title"><?php echo htmlspecialchars($question['question_text']); ?></h5>
+        <?php if ($hasResponses): ?>
+            <h3>أسئلة التقييم بالنجوم:</h3>
+            <!--Tabs -->
+            <ul class="nav nav-tabs mb-4 flex-column flex-sm-row" id="chartTypeTabs" role="tablist">
+                <li class="nav-item flex-sm-fill text-sm-center" role="presentation">
+                    <button class="nav-link active" id="bar-tab" data-bs-toggle="tab" data-chart-type="bar" type="button" role="tab" aria-controls="bar" aria-selected="true">الرسم البياني العمودي</button>
+                </li>
+                <li class="nav-item flex-sm-fill text-sm-center" role="presentation">
+                    <button class="nav-link" id="pie-tab" data-bs-toggle="tab" data-chart-type="pie" type="button" role="tab" aria-controls="pie" aria-selected="false">الرسم البياني الدائري</button>
+                </li>
+                <li class="nav-item flex-sm-fill text-sm-center" role="presentation">
+                    <button class="nav-link" id="line-tab" data-bs-toggle="tab" data-chart-type="line" type="button" role="tab" aria-controls="line" aria-selected="false">الرسم البياني الخطي</button>
+                </li>
+            </ul>
 
-                        <?php
-                        // Calculate average rating
-                        $total = 0;
-                        $count = count($question['answers']);
-                        foreach ($question['answers'] as $answer) {
-                            $total += (int)$answer['answer_text'];
-                        }
-                        $average = $count ? round($total / $count, 2) : 0;
-                        ?>
-
-                        <p>متوسط التقييم: <strong><?php echo $average; ?></strong> من 10</p>
-
-                        <canvas id="chart-<?php echo $question['question_id']; ?>"></canvas>
-
-                    </div>
-                </div>
-            <?php endif; ?>
-        <?php endforeach; ?>
-
-        <div class="mt-5">
-            <h3>الإجابات النصية</h3>
-            <?php if (!empty($textAnswers)): ?>
-                <?php foreach ($textAnswers as $textAnswer): ?>
+            <!-- Display charts for star and choice questions -->
+            <?php foreach ($chartData as $questionId => $data): ?>
+                <?php if ($data['type'] == 'stars'): ?>
                     <div class="card mb-4">
                         <div class="card-body">
-                            <h5 class="card-title"><?php echo htmlspecialchars($textAnswer['question_text']); ?></h5>
-                            <?php if (!empty($textAnswer['answers'])): ?>
-                                <ul>
-                                    <?php foreach ($textAnswer['answers'] as $answer): ?>
-                                        <li><?php echo htmlspecialchars($answer['answer_text']); ?></li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            <?php else: ?>
-                                <p>لا توجد إجابات حتى الآن.</p>
-                            <?php endif; ?>
+                            <h5 class="card-title"><?php echo htmlspecialchars($data['question_text']); ?></h5>
+
+                            <?php
+                            // Calculate average rating
+                            $total = 0;
+                            $count = array_sum($data['data']);
+                            foreach ($data['data'] as $rating => $num) {
+                                $total += $rating * $num;
+                            }
+                            $average = $count ? round($total / $count, 2) : 0;
+                            ?>
+
+                            <p>متوسط التقييم: <strong><?php echo $average; ?></strong> من 10</p>
+
+                            <div class="chart-container">
+                                <canvas id="chart-<?php echo $questionId; ?>"></canvas>
+                            </div>
                         </div>
                     </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <p>لا توجد إجابات نصية.</p>
-            <?php endif; ?>
-        </div>
+                <?php endif; ?>
+            <?php endforeach; ?>
+
+            <!-- Text Answers -->
+            <div class="mt-5">
+                <h3>الإجابات النصية:</h3>
+                <?php if (!empty($textAnswers)): ?>
+                    <?php foreach ($textAnswers as $textAnswer): ?>
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <h5 class="card-title"><?php echo htmlspecialchars($textAnswer['question_text']); ?></h5>
+                                <?php if (!empty($textAnswer['answers'])): ?>
+                                    <ul>
+                                        <?php foreach ($textAnswer['answers'] as $answer): ?>
+                                            <li><?php echo nl2br(htmlspecialchars($answer['answer_text'])); ?></li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                <?php else: ?>
+                                    <p>لا توجد إجابات حتى الآن.</p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <p>لا توجد إجابات نصية.</p>
+                <?php endif; ?>
+            </div>
+
+            <!-- Choice Questions Charts -->
+            <div class="mt-5">
+                <h3>أسئلة الاختيارات:</h3>
+                <?php 
+                $hasChoiceQuestions = false;
+                foreach ($chartData as $questionId => $data) {
+                    if ($data['type'] == 'choice') {
+                        $hasChoiceQuestions = true;
+                        break;
+                    }
+                }
+                
+                if (!$hasChoiceQuestions): ?>
+                    <div class="alert alert-info">
+                        لا توجد أسئلة اختيارات متاحة لهذا الاستبيان.
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($chartData as $questionId => $data): ?>
+                        <?php if ($data['type'] == 'choice'): ?>
+                            <div class="card mb-4">
+                                <div class="card-body">
+                                    <h5 class="card-title"><?php echo htmlspecialchars($data['question_text']); ?></h5>
+
+                                    <!-- Display Choices with Counts -->
+                                    <div class="choices-table mb-4">
+                                        <table class="table table-bordered">
+                                            <thead>
+                                                <tr>
+                                                    <th>الخيار</th>
+                                                    <th>عدد الأصوات</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($data['data'] as $choiceText => $count): ?>
+                                                    <tr>
+                                                        <td><?php echo htmlspecialchars($choiceText); ?></td>
+                                                        <td><?php echo $count; ?></td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <!-- Pie Chart -->
+                                    <div class="chart-container">
+                                        <canvas id="chart-<?php echo $questionId; ?>"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        <?php else: ?>
+            <div class="alert alert-info mt-4" role="alert">
+                لا توجد ردود متاحة للعرض بناءً على الفلاتر المحددة.
+            </div>
+        <?php endif; ?>
+
     </div> <!-- End of pdf-content -->
 
     <!-- Export Links -->
-    <div class="mt-5 text-center">
-        <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=excel&filter_type=<?php echo urlencode($filter_type); ?>&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&limit=<?php echo urlencode($limit); ?>" class="btn btn-primary">تصدير البيانات إلى ملف xls</a>
-        <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=csv&filter_type=<?php echo urlencode($filter_type); ?>&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&limit=<?php echo urlencode($limit); ?>" class="btn btn-primary">تصدير البيانات إلى ملف csv</a>
-        <!-- PDF Download Button -->
-        <button id="download-pdf" class="btn btn-primary mt-3">تحميل التقرير كملف PDF</button>
-    </div>
+    <?php if ($hasResponses): ?>
+        <div class="mt-5 text-center">
+            <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=excel&filter_type=<?php echo urlencode($filter_type); ?>&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&limit=<?php echo urlencode($limit); ?>" class="btn btn-primary">تصدير البيانات إلى ملف xls</a>
+            <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=csv&filter_type=<?php echo urlencode($filter_type); ?>&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&limit=<?php echo urlencode($limit); ?>" class="btn btn-primary">تصدير البيانات إلى ملف csv</a>
+            <!-- PDF Download Button -->
+            <button id="download-pdf" class="btn btn-primary">تحميل التقرير كملف PDF</button>
+        </div>
+    <?php endif; ?>
     <br>
 </div>
 
@@ -265,12 +422,41 @@ if (isset($_GET['id'])) {
         font-size: 0.9rem; /* Adjust the font size as needed */
     }
 }
+
 .form-label {
     font-weight: bold;
 }
+
 #period_inputs, #limit_input {
     margin-top: 15px;
 }
+
+/* Adjust chart container width */
+.chart-container {
+    width: 100%;
+    max-width: 85%; /* Set maximum width */
+    margin: 0 auto; /* Center the chart */
+}
+@media screen and (min-width: 1024px) {
+    .chart-container {
+        width: 100%;
+        max-width: 75%;
+    }
+}
+/* Styling for choices table */
+.choices-table table {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.choices-table th, .choices-table td {
+    text-align: center;
+}
+
+.choices-table th {
+    background-color: #f8f9fa;
+}
+
 </style>
 
 <!-- Include Chart.js, Bootstrap JS, and html2pdf.js -->
@@ -287,7 +473,7 @@ if (isset($_GET['id'])) {
 
         function updateFilterFields() {
             const selectedFilter = document.querySelector('input[name="filter_type"]:checked').value;
-            if (selectedFilter === 'all') {
+            if (selectedFilter === 'all' || selectedFilter === 'today' || selectedFilter === 'yesterday' || selectedFilter === 'last_week') {
                 periodInputs.style.display = 'none';
                 limitInput.style.display = 'none';
             } else if (selectedFilter === 'period') {
@@ -315,26 +501,31 @@ if (isset($_GET['id'])) {
         function createCharts(chartType) {
             // Iterate over each question to create the appropriate chart
             Object.keys(chartData).forEach(function(questionId) {
-                const ctx = document.getElementById('chart-' + questionId).getContext('2d');
                 const data = chartData[questionId];
+                const ctx = document.getElementById('chart-' + questionId).getContext('2d');
+                const labels = Object.keys(data.data);
+                const counts = Object.values(data.data);
 
                 // If a chart already exists, destroy it
                 if (charts[questionId]) {
                     charts[questionId].destroy();
                 }
 
+                // Determine chart type for this question
+                let qChartType = data.type === 'choice' ? 'pie' : chartType;
+
                 // Prepare the chart configuration
                 let chartConfig = {
-                    type: chartType,
+                    type: qChartType,
                     data: {
-                        labels: Object.keys(data),
+                        labels: labels,
                         datasets: [{
                             label: 'عدد الإجابات',
-                            data: Object.values(data),
-                            backgroundColor: generateColors(chartType, Object.keys(data).length),
+                            data: counts,
+                            backgroundColor: generateColors(qChartType, labels.length),
                             borderColor: 'rgba(54, 162, 235, 1)',
                             borderWidth: 1,
-                            fill: chartType === 'line' ? false : true,
+                            fill: qChartType === 'line' ? false : true,
                             tension: 0.1
                         }]
                     },
@@ -342,13 +533,13 @@ if (isset($_GET['id'])) {
                         plugins: {
                             title: {
                                 display: true,
-                                text: 'توزيع التقييمات'
+                                text: data.type === 'stars' ? 'توزيع التقييمات' : 'توزيع الاختيارات'
                             },
                             legend: {
-                                display: chartType !== 'bar' // Show legend except for bar charts
+                                display: qChartType !== 'bar' // Show legend except for bar charts
                             }
                         },
-                        scales: chartType === 'pie' ? {} : {
+                        scales: qChartType === 'pie' ? {} : {
                             y: {
                                 beginAtZero: true,
                                 precision: 0
@@ -405,7 +596,7 @@ if (isset($_GET['id'])) {
         });
 
         // PDF Generation Code
-        document.getElementById('download-pdf').addEventListener('click', function() {
+        document.getElementById('download-pdf')?.addEventListener('click', function() {
             const element = document.getElementById('pdf-content');
 
             const opt = {

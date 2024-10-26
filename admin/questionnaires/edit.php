@@ -39,13 +39,70 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_details'])) {
         $error_messages[] = "الرجاء اختيار لون خط صحيح.";
     }
 
-    // Initialize variables for image paths
-    $logo_path = $questionnaire['logo_path'];
+    // Get background option
+    $background_option = isset($_POST['background_option']) ? sanitizeInput($_POST['background_option']) : 'image';
+
+    // Initialize variables for background properties
+    $background_color = '';
     $background_path = $questionnaire['background_path'];
 
-    // Define allowed extensions and max file size
-    $allowed_ext = ['jpg', 'jpeg', 'png', 'gif'];
-    $max_file_size = 2 * 1024 * 1024; // 2MB
+    if ($background_option === 'color') {
+        // User selected background color
+        $background_color = sanitizeInput($_POST['background_color']);
+
+        // Validate background color
+        if (!preg_match('/^#[a-fA-F0-9]{6}$/', $background_color)) {
+            $error_messages[] = "الرجاء اختيار لون خلفية صحيح.";
+        }
+
+        // Remove background image
+        if (!empty($background_path) && file_exists('../../' . $background_path)) {
+            unlink('../../' . $background_path);
+        }
+        $background_path = ''; // Reset background_path
+    } else if ($background_option === 'image') {
+        // User selected background image
+        $background_color = ''; // Reset background_color if any
+
+        // Initialize variables for image paths
+        $logo_path = $questionnaire['logo_path'];
+        $background_path = $questionnaire['background_path'];
+
+        // Define allowed extensions and max file size
+        $allowed_ext = ['jpg', 'jpeg', 'png', 'gif'];
+        $max_file_size = 2 * 1024 * 1024; // 2MB
+
+        // Handle Background Image Upload
+        if (isset($_FILES['background']) && $_FILES['background']['error'] == UPLOAD_ERR_OK) {
+            if ($_FILES['background']['size'] <= $max_file_size) {
+                $background_tmp = $_FILES['background']['tmp_name'];
+                $background_name = basename($_FILES['background']['name']);
+                $background_ext = strtolower(pathinfo($background_name, PATHINFO_EXTENSION));
+
+                if (in_array($background_ext, $allowed_ext)) {
+                    // Sanitize and generate unique file name
+                    $unique_id = uniqid();
+                    $new_background_name = 'background_' . $questionnaire_id . '_' . $unique_id . '.' . $background_ext;
+                    $background_destination = '../../uploads/backgrounds/' . $new_background_name;
+
+                    if (move_uploaded_file($background_tmp, $background_destination)) {
+                        // Delete old background if exists
+                        if (!empty($background_path) && file_exists('../../' . $background_path)) {
+                            unlink('../../' . $background_path);
+                        }
+
+                        $background_path = 'uploads/backgrounds/' . $new_background_name;
+                    } else {
+                        $error_messages[] = "فشل رفع صورة الخلفية.";
+                    }
+                } else {
+                    $error_messages[] = "امتداد صورة الخلفية غير مسموح به. فقط JPG، JPEG، PNG، GIF مسموح.";
+                }
+            } else {
+                $error_messages[] = "حجم صورة الخلفية يجب أن يكون أقل من 2MB.";
+            }
+        }
+    }
 
     // Handle Logo Upload
     if (isset($_FILES['logo']) && $_FILES['logo']['error'] == UPLOAD_ERR_OK) {
@@ -76,37 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_details'])) {
         } else {
             $error_messages[] = "حجم الشعار يجب أن يكون أقل من 2MB.";
         }
-    }
-
-    // Handle Background Image Upload
-    if (isset($_FILES['background']) && $_FILES['background']['error'] == UPLOAD_ERR_OK) {
-        if ($_FILES['background']['size'] <= $max_file_size) {
-            $background_tmp = $_FILES['background']['tmp_name'];
-            $background_name = basename($_FILES['background']['name']);
-            $background_ext = strtolower(pathinfo($background_name, PATHINFO_EXTENSION));
-
-            if (in_array($background_ext, $allowed_ext)) {
-                // Sanitize and generate unique file name
-                $unique_id = uniqid();
-                $new_background_name = 'background_' . $questionnaire_id . '_' . $unique_id . '.' . $background_ext;
-                $background_destination = '../../uploads/backgrounds/' . $new_background_name;
-
-                if (move_uploaded_file($background_tmp, $background_destination)) {
-                    // Delete old background if exists
-                    if (!empty($background_path) && file_exists('../../' . $background_path)) {
-                        unlink('../../' . $background_path);
-                    }
-
-                    $background_path = 'uploads/backgrounds/' . $new_background_name;
-                } else {
-                    $error_messages[] = "فشل رفع صورة الخلفية.";
-                }
-            } else {
-                $error_messages[] = "امتداد صورة الخلفية غير مسموح به. فقط JPG، JPEG، PNG، GIF مسموح.";
-            }
-        } else {
-            $error_messages[] = "حجم صورة الخلفية يجب أن يكون أقل من 2MB.";
-        }
+    } else {
+        $logo_path = $questionnaire['logo_path']; // Keep existing logo path
     }
 
     // Only proceed if there are no errors
@@ -115,9 +143,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_details'])) {
             // Begin transaction
             $pdo->beginTransaction();
 
-            // Update the questionnaire details in the database, including welcome, thanks, and font_color
-            $stmt = $pdo->prepare('UPDATE questionnaires SET title = ?, description = ?, welcome = ?, thanks = ?, font_color = ?, logo_path = ?, background_path = ? WHERE questionnaire_id = ?');
-            $stmt->execute([$title, $description, $welcome, $thanks, $font_color, $logo_path, $background_path, $questionnaire_id]);
+            // Update the questionnaire details in the database, including background_color
+            $stmt = $pdo->prepare('UPDATE questionnaires SET title = ?, description = ?, welcome = ?, thanks = ?, font_color = ?, logo_path = ?, background_path = ?, background_color = ? WHERE questionnaire_id = ?');
+            $stmt->execute([$title, $description, $welcome, $thanks, $font_color, $logo_path, $background_path, $background_color, $questionnaire_id]);
 
             // Commit transaction
             $pdo->commit();
@@ -271,9 +299,9 @@ $questions = $stmt->fetchAll();
 
                                     <!-- Font Color Picker -->
                                     <div class="form-group">
-                                        <label for="font_color">لون الخط</label>
+                                        <label for="font_color">لون القالب</label>
                                         <input type="color" name="font_color" id="font_color" class="form-control" value="<?php echo htmlspecialchars($questionnaire['font_color']); ?>" required>
-                                        <small class="form-text text-muted">اختر لوناً مناسباً للخط.</small>
+                                        <small class="form-text text-muted">اختر لوناً مناسباً للقالب.</small>
                                     </div>
 
                                     <!-- Logo Upload Input -->
@@ -288,8 +316,25 @@ $questions = $stmt->fetchAll();
                                         <?php endif; ?>
                                     </div>
 
-                                    <!-- Background Image Upload Input -->
+                                    <!-- Background Option Selection -->
                                     <div class="form-group">
+                                        <label>خلفية الصفحة</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="background_option" id="background_option_image" value="image" <?php echo (empty($questionnaire['background_color']) || !empty($questionnaire['background_path'])) ? 'checked' : ''; ?>>
+                                            <label class="form-check-label" for="background_option_image">
+                                                استخدام صورة الخلفية
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="background_option" id="background_option_color" value="color" <?php echo (!empty($questionnaire['background_color']) ? 'checked' : ''); ?>>
+                                            <label class="form-check-label" for="background_option_color">
+                                                استخدام لون الخلفية
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Background Image Upload Input -->
+                                    <div class="form-group" id="backgroundImageSection" style="display: <?php echo (empty($questionnaire['background_color']) || !empty($questionnaire['background_path'])) ? 'block' : 'none'; ?>;">
                                         <label for="background">صورة الخلفية</label>
                                         <div class="custom-file">
                                             <input type="file" name="background" id="background" class="custom-file-input" accept=".jpg, .jpeg, .png, .gif">
@@ -298,6 +343,12 @@ $questions = $stmt->fetchAll();
                                         <?php if (!empty($questionnaire['background_path']) && file_exists('../../' . $questionnaire['background_path'])): ?>
                                             <img src="<?php echo '../../' . htmlspecialchars($questionnaire['background_path']); ?>" alt="Background" class="image-preview">
                                         <?php endif; ?>
+                                    </div>
+
+                                    <!-- Background Color Picker -->
+                                    <div class="form-group" id="backgroundColorSection" style="display: <?php echo (!empty($questionnaire['background_color'])) ? 'block' : 'none'; ?>;">
+                                        <label for="background_color">لون الخلفية</label>
+                                        <input type="color" name="background_color" id="background_color" class="form-control" value="<?php echo htmlspecialchars($questionnaire['background_color']); ?>">
                                     </div>
 
                                     <button type="submit" name="update_details" class="btn btn-success mt-3">تحديث التفاصيل</button>
@@ -321,11 +372,11 @@ $questions = $stmt->fetchAll();
                                         <select name="question_type" id="question_type" class="form-control" required>
                                             <option value="">اختر نوع السؤال</option>
                                             <option value="textarea">مساحة نص</option>
-                                            <option value="choice">اختيار من متعدد</option>
+                                            <option value="choice">اختيارات</option>
                                             <option value="stars">تقييم بالنجوم</option>
                                         </select>
                                     </div>
-                                    
+
                                     <!-- Multiple Choice Options (initially hidden) -->
                                     <div id="choicesSection" style="display: none;">
                                         <div class="form-group">
@@ -341,12 +392,11 @@ $questions = $stmt->fetchAll();
                                             <button type="button" class="btn btn-secondary" onclick="addChoice()">إضافة خيار</button>
                                         </div>
                                     </div>
-                                    
+
                                     <button type="submit" name="add_question" class="btn btn-primary mt-3">إضافة سؤال</button>
                                 </form>
                             </div>
                         </div>
-
 
                         <!-- Display Existing Questions with Delete Button -->
                             <div class="card mb-4">
@@ -453,53 +503,73 @@ $questions = $stmt->fetchAll();
         });
 
 
+        // Show/hide choices section based on question type
+        document.getElementById('question_type').addEventListener('change', function() {
+            const choicesSection = document.getElementById('choicesSection');
+            if (this.value === 'choice') {
+                choicesSection.style.display = 'block';
+            } else {
+                choicesSection.style.display = 'none';
+            }
+        });
 
-          // Show/hide choices section based on question type
-    document.getElementById('question_type').addEventListener('change', function() {
-        const choicesSection = document.getElementById('choicesSection');
-        if (this.value === 'choice') {
-            choicesSection.style.display = 'block';
-        } else {
-            choicesSection.style.display = 'none';
+        // Function to add new choice input
+        function addChoice() {
+            const container = document.getElementById('choicesContainer');
+            const newChoice = document.createElement('div');
+            newChoice.className = 'input-group mb-2';
+            newChoice.innerHTML = `
+                <input type="text" name="choices[]" class="form-control" placeholder="أدخل الخيار">
+                <div class="input-group-append">
+                    <button type="button" class="btn btn-danger remove-choice" onclick="removeChoice(this)">حذف</button>
+                </div>
+            `;
+            container.appendChild(newChoice);
         }
-    });
 
-    // Function to add new choice input
-    function addChoice() {
-        const container = document.getElementById('choicesContainer');
-        const newChoice = document.createElement('div');
-        newChoice.className = 'input-group mb-2';
-        newChoice.innerHTML = `
-            <input type="text" name="choices[]" class="form-control" placeholder="أدخل الخيار">
-            <div class="input-group-append">
-                <button type="button" class="btn btn-danger remove-choice" onclick="removeChoice(this)">حذف</button>
-            </div>
-        `;
-        container.appendChild(newChoice);
-    }
+        // Function to remove choice input
+        function removeChoice(button) {
+            button.closest('.input-group').remove();
+        }
 
-    // Function to remove choice input
-    function removeChoice(button) {
-        button.closest('.input-group').remove();
-    }
-
-    // Form validation
-    document.getElementById('questionForm').addEventListener('submit', function(e) {
-        const questionType = document.getElementById('question_type').value;
-        if (questionType === 'choice') {
-            const choices = document.getElementsByName('choices[]');
-            let validChoices = 0;
-            for (let choice of choices) {
-                if (choice.value.trim() !== '') {
-                    validChoices++;
+        // Form validation
+        document.getElementById('questionForm').addEventListener('submit', function(e) {
+            const questionType = document.getElementById('question_type').value;
+            if (questionType === 'choice') {
+                const choices = document.getElementsByName('choices[]');
+                let validChoices = 0;
+                for (let choice of choices) {
+                    if (choice.value.trim() !== '') {
+                        validChoices++;
+                    }
+                }
+                if (validChoices < 2) {
+                    e.preventDefault();
+                    alert('يجب إضافة خيارين على الأقل للسؤال متعدد الخيارات');
                 }
             }
-            if (validChoices < 2) {
-                e.preventDefault();
-                alert('يجب إضافة خيارين على الأقل للسؤال متعدد الخيارات');
+        });
+
+        // Background option toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const backgroundOptionImage = document.getElementById('background_option_image');
+            const backgroundOptionColor = document.getElementById('background_option_color');
+            const backgroundImageSection = document.getElementById('backgroundImageSection');
+            const backgroundColorSection = document.getElementById('backgroundColorSection');
+
+            function toggleBackgroundOption() {
+                if (backgroundOptionImage.checked) {
+                    backgroundImageSection.style.display = 'block';
+                    backgroundColorSection.style.display = 'none';
+                } else if (backgroundOptionColor.checked) {
+                    backgroundImageSection.style.display = 'none';
+                    backgroundColorSection.style.display = 'block';
+                }
             }
-        }
-    });
+
+            backgroundOptionImage.addEventListener('change', toggleBackgroundOption);
+            backgroundOptionColor.addEventListener('change', toggleBackgroundOption);
+        });
     </script>
 </body>
 </html>

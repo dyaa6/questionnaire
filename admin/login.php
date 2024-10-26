@@ -33,7 +33,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <div class="col-md-6">
         <div class="card">
             <div class="card-header text-center">
-                <h2>Admin Login</h2>
+                <h2>
+                    تسجيل دخول الادمن
+                </h2>
             </div>
             <div class="card-body">
                 <?php if (isset($error_message)): ?>
@@ -44,14 +46,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 <form action="login.php" method="post">
                     <div class="mb-3">
-                        <label class="form-label">Username</label>
+                        <label class="form-label">اسم المستخدم</label>
                         <input type="text" name="username" class="form-control" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Password</label>
+                        <label class="form-label">كلمة السر</label>
                         <input type="password" name="password" class="form-control" required>
                     </div>
-                    <button type="submit" class="btn btn-primary w-100">Login</button>
+                    <button type="submit" class="btn btn-primary w-100">
+                        تسجيل الدخول
+                    </button>
                 </form>
             </div>
         </div>
