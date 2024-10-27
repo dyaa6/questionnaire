@@ -305,7 +305,7 @@ if (isset($_GET['msg']) && $_GET['msg'] == 'deleted') {
                                                 <a href="questionnaires/view.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-info">عرض</a>
                                                 <a href="questionnaires/edit.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-warning">تعديل</a>
                                                 <a href="questionnaires/delete.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('هل أنت متأكد أنك تريد حذف هذا الاستبيان؟');">حذف</a>
-                                                <a href="../../questionnaire/questionnaire/take.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-success">الرابط</a>
+                                                <a href="../../questionnaire/questionnaire/take.php?id=<?php echo $questionnaire['questionnaire_id']; ?>" class="btn btn-sm btn-success" target="_blank">الرابط</a>
                                             </td>
                                         </tr>
                                     <?php endforeach; ?>

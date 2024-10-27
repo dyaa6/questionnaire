@@ -37,8 +37,8 @@ if (!$response) {
     exit();
 }
 
-// جلب الأسئلة والإجابات المتعلقة بهذا الرد
-$stmt_questions = $pdo->prepare('SELECT questions.question_text, answers.answer_text FROM answers JOIN questions ON answers.question_id = questions.question_id WHERE answers.response_id = ?');
+// جلب الأسئلة والإجابات المتعلقة بهذا الرد، بما في ذلك نوع السؤال
+$stmt_questions = $pdo->prepare('SELECT questions.question_text, questions.question_type, answers.answer_text FROM answers JOIN questions ON answers.question_id = questions.question_id WHERE answers.response_id = ?');
 $stmt_questions->execute([$response_id]);
 $answers = $stmt_questions->fetchAll();
 ?>
@@ -88,9 +88,34 @@ $answers = $stmt_questions->fetchAll();
                 <h5 class="card-title">الإجابات</h5>
                 <?php if (count($answers) > 0): ?>
                     <?php foreach ($answers as $answer): ?>
+                        <?php
+                        // معالجة الإجابة بناءً على نوع السؤال
+                        $question_type = $answer['question_type'];
+                        $display_answer = '';
+
+                        if ($question_type == 'choice') {
+                            // الإجابة تحتوي على معرف الخيار أو المعرفات
+                            $choice_ids = explode(',', $answer['answer_text']);
+                            $placeholders = implode(',', array_fill(0, count($choice_ids), '?'));
+
+                            // جلب نصوص الخيارات
+                            $stmt_choices = $pdo->prepare("SELECT choice_text FROM choices WHERE choice_id IN ($placeholders)");
+                            $stmt_choices->execute($choice_ids);
+                            $choices = $stmt_choices->fetchAll(PDO::FETCH_COLUMN);
+
+                            // دمج نصوص الخيارات لعرضها
+                            $display_answer = implode(', ', $choices);
+                        } else if ($question_type == 'stars') {
+                            // سؤال تقييم بالنجوم
+                            $display_answer = $answer['answer_text'] . ' من 10';
+                        } else {
+                            // أنواع الأسئلة الأخرى (نصية)
+                            $display_answer = $answer['answer_text'];
+                        }
+                        ?>
                         <div class="answer">
                             <p class="question"><?php echo htmlspecialchars($answer['question_text']); ?></p>
-                            <p class="answer-text"><?php echo htmlspecialchars($answer['answer_text']); ?></p>
+                            <p class="answer-text"><?php echo nl2br(htmlspecialchars($display_answer)); ?></p>
                         </div>
                     <?php endforeach; ?>
                 <?php else: ?>
