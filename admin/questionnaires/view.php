@@ -307,7 +307,12 @@ if (isset($_GET['id'])) {
                             $average = $count ? round($total / $count, 2) : 0;
                             ?>
 
-                            <p>متوسط التقييم: <strong><?php echo $average; ?></strong> من 10</p>
+                            <p>متوسط التقييم: <strong><?php echo $average; ?></strong>
+                            من 
+                            <strong>
+                                10
+                             </strong>
+                        </p>
 
                             <div class="chart-container">
                                 <canvas id="chart-<?php echo $questionId; ?>"></canvas>
@@ -406,10 +411,10 @@ if (isset($_GET['id'])) {
     <!-- Export Links -->
     <?php if ($hasResponses): ?>
         <div class="mt-5 text-center">
-            <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=excel&filter_type=<?php echo urlencode($filter_type); ?>&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&limit=<?php echo urlencode($limit); ?>" class="btn btn-primary">تصدير البيانات إلى ملف xls</a>
-            <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=csv&filter_type=<?php echo urlencode($filter_type); ?>&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&limit=<?php echo urlencode($limit); ?>" class="btn btn-primary">تصدير البيانات إلى ملف csv</a>
+            <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=excel&filter_type=<?php echo urlencode($filter_type); ?>&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&limit=<?php echo urlencode($limit); ?>" class="btn btn-primary mt-1">تصدير البيانات إلى ملف xls</a>
+            <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=csv&filter_type=<?php echo urlencode($filter_type); ?>&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&limit=<?php echo urlencode($limit); ?>" class="btn btn-primary mt-1">تصدير البيانات إلى ملف csv</a>
             <!-- PDF Download Button -->
-            <button id="download-pdf" class="btn btn-primary">تحميل التقرير كملف PDF</button>
+            <button id="download-pdf" class="btn btn-primary mt-1">تحميل التقرير كملف PDF</button>
         </div>
     <?php endif; ?>
     <br>
@@ -434,7 +439,7 @@ if (isset($_GET['id'])) {
 /* Adjust chart container width */
 .chart-container {
     width: 100%;
-    max-width: 85%; /* Set maximum width */
+    max-width: 100%; /* Set maximum width */
     margin: 0 auto; /* Center the chart */
 }
 @media screen and (min-width: 1024px) {

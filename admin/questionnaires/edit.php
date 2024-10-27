@@ -165,13 +165,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_details'])) {
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_question'])) {
     $question_text = sanitizeInput($_POST['question_text']);
     $question_type = sanitizeInput($_POST['question_type']);
+    $is_required = isset($_POST['required']) ? 1 : 0; // New field for required
 
     try {
         $pdo->beginTransaction();
 
-        // Insert the question
-        $stmt = $pdo->prepare('INSERT INTO questions (questionnaire_id, question_text, question_type) VALUES (?, ?, ?)');
-        $stmt->execute([$questionnaire_id, $question_text, $question_type]);
+        // Insert the question with is_required
+        $stmt = $pdo->prepare('INSERT INTO questions (questionnaire_id, question_text, question_type, is_required) VALUES (?, ?, ?, ?)');
+        $stmt->execute([$questionnaire_id, $question_text, $question_type, $is_required]);
         $question_id = $pdo->lastInsertId();
 
         // If it's a multiple choice question, insert the choices
@@ -219,7 +220,6 @@ $stmt = $pdo->prepare('
 ');
 $stmt->execute([$questionnaire_id]);
 $questions = $stmt->fetchAll();
-
 ?>
 
 <!DOCTYPE html>
@@ -246,6 +246,26 @@ $questions = $stmt->fetchAll();
         body, .card, .card-body, .form-group, label {
             text-align: right;
         }
+
+        /* Style for the required switch */
+        .custom-switch .custom-control-label::before, 
+        .custom-switch .custom-control-label::after {
+            top: 0.25rem;
+            width: 2rem;
+            height: 1rem;
+        }
+
+        .custom-switch .custom-control-label::after {
+            left: calc(-2rem + 0.25rem);
+            width: 0.75rem;
+            height: 0.75rem;
+            background-color: white;
+            transition: transform 0.15s ease-in-out;
+        }
+
+        .custom-switch .custom-control-input:checked ~ .custom-control-label::after {
+            transform: translateX(0.75rem);
+        }
     </style>
 </head>
 <body dir="rtl">
@@ -253,7 +273,7 @@ $questions = $stmt->fetchAll();
     <div class="container-fluid mt-5">
         <div class="row">
             <!-- Main Content Column -->
-            <div class="col-md-12">
+            <div class="col-md-12 ps-0 pe-0">
                 <div class="card dashboard-card">
                     <div class="card-body">
                         <h2 class="mb-4 text-center">تحرير الاستبيان</h2>
@@ -377,6 +397,14 @@ $questions = $stmt->fetchAll();
                                         </select>
                                     </div>
 
+                                    <!-- Required Switch -->
+                                    <div class="form-group">
+                                        <div class="custom-control custom-checkbox">
+                                            <input type="checkbox" class="custom-control-input" id="required" name="required" checked>
+                                            <label class="custom-control-label" for="required">السؤال مطلوب</label>
+                                        </div>
+                                    </div>
+
                                     <!-- Multiple Choice Options (initially hidden) -->
                                     <div id="choicesSection" style="display: none;">
                                         <div class="form-group">
@@ -417,6 +445,11 @@ $questions = $stmt->fetchAll();
                                                                     <i class="fas fa-chevron-down mr-2"></i>
                                                                     <?php echo htmlspecialchars($question['question_text']); ?>
                                                                     <span class="badge badge-pill badge-secondary">اختيارات</span>
+                                                                    <?php if ($question['is_required']): ?>
+                                                                        <span class="badge badge-pill badge-danger">مطلوب</span>
+                                                                    <?php else: ?>
+                                                                        <span class="badge badge-pill badge-warning">اختياري</span>
+                                                                    <?php endif; ?>
                                                                 </a>
                                                             <?php else: ?>
                                                                 <span>
@@ -435,6 +468,11 @@ $questions = $stmt->fetchAll();
                                                                         }
                                                                         ?>
                                                                     </span>
+                                                                    <?php if ($question['is_required']): ?>
+                                                                        <span class="badge badge-pill badge-danger">مطلوب</span>
+                                                                    <?php else: ?>
+                                                                        <span class="badge badge-pill badge-warning">اختياري</span>
+                                                                    <?php endif; ?>
                                                                 </span>
                                                             <?php endif; ?>
                                                         </div>

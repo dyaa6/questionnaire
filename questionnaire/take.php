@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_survey'])) {
 
     // Validate all required answers
     foreach ($questions as $question) {
-        if (empty($answers[$question['question_id']])) {
+        if ($question['is_required'] && (empty($answers[$question['question_id']]) || (is_array($answers[$question['question_id']]) && empty($answers[$question['question_id']])))) {
             $errors[] = "الرجاء الإجابة على السؤال: " . htmlspecialchars($question['question_text']);
         }
     }
@@ -64,7 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_survey'])) {
             $stmt = $pdo->prepare('INSERT INTO answers (response_id, question_id, answer_text) VALUES (?, ?, ?)');
             foreach ($answers as $question_id => $answer) {
                 // Sanitize inputs
-                $sanitized_answer = sanitizeInput($answer);
+                if (is_array($answer)) {
+                    // If answer is an array (e.g., multiple selections), serialize it
+                    $sanitized_answer = json_encode(array_map('sanitizeInput', $answer));
+                } else {
+                    $sanitized_answer = sanitizeInput($answer);
+                }
 
                 $stmt->execute([$response_id, $question_id, $sanitized_answer]);
             }
@@ -312,38 +317,20 @@ if (!empty($questionnaire['background_color'])) {
         <?php if (!$submission_success): ?>
             <div id="surveySection" class="message-container" style="display: <?php echo ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($errors)) ? 'none' : 'none'; ?>;">
                 <form action="take.php?id=<?php echo $questionnaire_id; ?>" method="post" id="questionForm" class="needs-validation" novalidate>
-                    <div class="card mb-4 bg-light">
-                        <div class="card-body">
-                            <!-- Dynamic Logo -->
-                            <?php if (!empty($questionnaire['logo_path']) && file_exists('../' . $questionnaire['logo_path'])): ?>
-                                <div class="logo-container">
-                                    <img class="logo" src="<?php echo "../" . htmlspecialchars($questionnaire['logo_path']); ?>" alt="Logo"/>
-                                </div>
-                            <?php else: ?>
-                                <div class="logo-container">
-                                    <img class="logo" src="https://picsum.photos/id/1/200/300" width="80px" alt="logo"/>
-                                </div>
-                            <?php endif; ?>
-
-                            <!-- Title and Description -->
-                            <h2 class="card-title text-center"><?php echo htmlspecialchars($questionnaire['title']); ?></h2>
-                            <p class="card-text text-center"><?php echo htmlspecialchars($questionnaire['description']); ?></p>
-                        </div>
-                    </div>
-
+                    <!-- Survey Questions -->
                     <div class="slider">
                         <?php foreach ($questions as $index => $question): ?>
                             <div class="slider-item" data-index="<?php echo $index; ?>" style="<?php echo $index === 0 ? '' : 'display:none;'; ?>">
-                                <div class="card mb-4 shadow-sm">
+                                <div class="card mb-4 shadow-sm" style="padding-top:20px">
                                     <div class="card-body">
                                         <h5 class="card-title"><?php echo ($index + 1) . '. ' . htmlspecialchars($question['question_text']); ?></h5>
                                         <?php if ($question['question_type'] == 'text'): ?>
-                                            <input type="text" name="answers[<?php echo $question['question_id']; ?>]" class="form-control" required>
+                                            <input type="text" name="answers[<?php echo $question['question_id']; ?>]" class="form-control" <?php echo $question['is_required'] ? 'required' : ''; ?>>
                                             <div class="invalid-feedback">
                                                 الرجاء تقديم إجابة.
                                             </div>
                                         <?php elseif ($question['question_type'] == 'textarea'): ?>
-                                            <textarea name="answers[<?php echo $question['question_id']; ?>]" class="form-control" rows="4" required></textarea>
+                                            <textarea name="answers[<?php echo $question['question_id']; ?>]" class="form-control" rows="4" <?php echo $question['is_required'] ? 'required' : ''; ?>></textarea>
                                             <div class="invalid-feedback">
                                                 الرجاء تقديم إجابة.
                                             </div>
@@ -366,7 +353,7 @@ if (!empty($questionnaire['background_color'])) {
                                                                name="answers[<?php echo $question['question_id']; ?>]"
                                                                value="<?php echo $choice['choice_id']; ?>"
                                                                id="choice<?php echo $question['question_id'] . '_' . $choice['choice_id']; ?>"
-                                                               required>
+                                                               <?php echo $question['is_required'] ? 'required' : ''; ?>>
                                                         <label class="choice-label"
                                                                for="choice<?php echo $question['question_id'] . '_' . $choice['choice_id']; ?>"
                                                                style="--font-color: <?php echo $color; ?>; --bg-color: <?php echo $rgba_bg; ?>">
@@ -375,16 +362,18 @@ if (!empty($questionnaire['background_color'])) {
                                                         </label>
                                                     </div>
                                                 <?php endforeach; ?>
-                                                <div class="invalid-feedback">
-                                                    الرجاء اختيار خيار.
-                                                </div>
+                                                <?php if ($question['is_required']): ?>
+                                                    <div class="invalid-feedback">
+                                                        الرجاء اختيار خيار.
+                                                    </div>
+                                                <?php endif; ?>
                                             </div>
                                         <?php elseif ($question['question_type'] == 'stars'): ?>
                                             <div class="star-rating-container">
                                                 <div class="star-rating d-flex justify-content-center" id="star-rating-<?php echo $question['question_id']; ?>">
                                                     <?php for ($i = 1; $i <= 10; $i++): ?>
                                                         <div class="form-check form-check-inline">
-                                                            <input class="form-check-input" style='display:none' type="radio" id="star<?php echo $i; ?>_<?php echo $question['question_id']; ?>" name="answers[<?php echo $question['question_id']; ?>]" value="<?php echo $i; ?>" required />
+                                                            <input class="form-check-input" style='display:none' type="radio" id="star<?php echo $i; ?>_<?php echo $question['question_id']; ?>" name="answers[<?php echo $question['question_id']; ?>]" value="<?php echo $i; ?>" <?php echo $question['is_required'] ? 'required' : ''; ?> />
                                                             <label class="form-check-label" for="star<?php echo $i; ?>_<?php echo $question['question_id']; ?>">
                                                                 &#9733;
                                                             </label>
@@ -395,9 +384,11 @@ if (!empty($questionnaire['background_color'])) {
                                                     <span class="rating-label">سيء</span>
                                                     <span class="rating-label">جيد</span>
                                                 </div>
-                                                <div class="invalid-feedback" style="display: none;">
-                                                    الرجاء اختيار تقييم.
-                                                </div>
+                                                <?php if ($question['is_required']): ?>
+                                                    <div class="invalid-feedback" style="display: none;">
+                                                        الرجاء اختيار تقييم.
+                                                    </div>
+                                                <?php endif; ?>
                                             </div>
                                         <?php endif; ?>
                                     </div>
@@ -448,144 +439,7 @@ if (!empty($questionnaire['background_color'])) {
 
     <!-- Enhanced Multiple Choice Styling with Dynamic Colors -->
     <style>
-        .choices-container {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            margin-top: 1.5rem;
-        }
-
-        .choice-wrapper {
-            position: relative;
-            transition: all 0.3s ease;
-        }
-
-        .choice-input {
-            position: absolute;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .choice-label {
-            display: flex;
-            align-items: center;
-            padding: 1rem 1.5rem;
-            background-color: rgba(255, 255, 255, 0.9);
-            border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 0;
-            gap: 1rem;
-        }
-
-        .choice-radio {
-            width: 24px;
-            height: 24px;
-            border: 2px solid #cbd5e0;
-            border-radius: 50%;
-            position: relative;
-            transition: all 0.3s ease;
-        }
-
-        .choice-radio::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) scale(0);
-            width: 12px;
-            height: 12px;
-            background-color: var(--font-color);
-            border-radius: 50%;
-            transition: all 0.2s ease;
-        }
-
-        .choice-text {
-            flex: 1;
-            font-size: 1rem;
-            color: #4a5568;
-            transition: all 0.3s ease;
-        }
-
-        /* Hover State */
-        .choice-label:hover {
-            border-color: var(--font-color);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            transform: translateY(-1px);
-        }
-
-        .choice-label:hover .choice-radio {
-            border-color: var(--font-color);
-        }
-
-        /* Selected State */
-        .choice-input:checked + .choice-label {
-            border-color: var(--font-color);
-            background-color: var(--bg-color);
-        }
-
-        .choice-input:checked + .choice-label .choice-radio {
-            border-color: var(--font-color);
-        }
-
-        .choice-input:checked + .choice-label .choice-radio::after {
-            transform: translate(-50%, -50%) scale(1);
-        }
-
-        .choice-input:checked + .choice-label .choice-text {
-            color: var(--font-color);
-            font-weight: 500;
-        }
-
-        /* Focus State */
-        .choice-input:focus + .choice-label {
-            outline: 2px solid var(--font-color);
-            outline-offset: 2px;
-        }
-
-        /* Error State */
-        .choice-input.is-invalid + .choice-label {
-            border-color: #dc3545;
-        }
-
-        /* Responsive adjustments */
-        @media (max-width: 768px) {
-            .choice-label {
-                padding: 0.75rem 1rem;
-            }
-
-            .choice-radio {
-                width: 20px;
-                height: 20px;
-            }
-
-            .choice-radio::after {
-                width: 10px;
-                height: 10px;
-            }
-
-            .choice-text {
-                font-size: 0.9rem;
-            }
-        }
-
-        /* Animation for selection */
-        @keyframes selectChoice {
-            0% {
-                transform: scale(0.95);
-            }
-            50% {
-                transform: scale(1.02);
-            }
-            100% {
-                transform: scale(1);
-            }
-        }
-
-        .choice-input:checked + .choice-label {
-            animation: selectChoice 0.3s ease forwards;
-        }
+        
     </style>
 
     <!-- Bootstrap Bundle with Popper -->
@@ -692,11 +546,31 @@ if (!empty($questionnaire['background_color'])) {
                     sliderItems.forEach(item => {
                         const inputs = item.querySelectorAll('input, textarea');
                         inputs.forEach(input => {
-                            if (!input.checkValidity()) {
+                            if (input.hasAttribute('required') && !input.checkValidity()) {
                                 valid = false;
                                 input.classList.add('is-invalid');
+                                // For star ratings
+                                if (input.type === 'radio' && input.name.startsWith('answers[')) {
+                                    const starRatingContainer = input.closest('.star-rating-container');
+                                    if (starRatingContainer) {
+                                        const invalidFeedback = starRatingContainer.querySelector('.invalid-feedback');
+                                        if (invalidFeedback) {
+                                            invalidFeedback.style.display = 'block';
+                                        }
+                                    }
+                                }
                             } else {
                                 input.classList.remove('is-invalid');
+                                // Hide invalid feedback for star rating if input is valid
+                                if (input.type === 'radio' && input.name.startsWith('answers[')) {
+                                    const starRatingContainer = input.closest('.star-rating-container');
+                                    if (starRatingContainer) {
+                                        const invalidFeedback = starRatingContainer.querySelector('.invalid-feedback');
+                                        if (invalidFeedback) {
+                                            invalidFeedback.style.display = 'none';
+                                        }
+                                    }
+                                }
                             }
                         });
                     });

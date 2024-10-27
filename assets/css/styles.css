@@ -161,3 +161,213 @@ footer {
     background-color: #f8f9fa;
     border-radius: 0.25rem;
 }
+
+
+
+/*take.php styles*/
+.choices-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.choice-wrapper {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.choice-input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.choice-label {
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin: 0;
+    gap: 1rem;
+}
+
+.choice-radio {
+    width: 24px;
+    height: 24px;
+    border: 2px solid #cbd5e0;
+    border-radius: 50%;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.choice-radio::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0);
+    width: 12px;
+    height: 12px;
+    background-color: var(--font-color);
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+
+.choice-text {
+    flex: 1;
+    font-size: 1rem;
+    color: #4a5568;
+    transition: all 0.3s ease;
+}
+
+/* Hover State */
+.choice-label:hover {
+    border-color: var(--font-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+.choice-label:hover .choice-radio {
+    border-color: var(--font-color);
+}
+
+/* Selected State */
+.choice-input:checked + .choice-label {
+    border-color: var(--font-color);
+    background-color: var(--bg-color);
+}
+
+.choice-input:checked + .choice-label .choice-radio {
+    border-color: var(--font-color);
+}
+
+.choice-input:checked + .choice-label .choice-radio::after {
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.choice-input:checked + .choice-label .choice-text {
+    color: var(--font-color);
+    font-weight: 500;
+}
+
+/* Focus State */
+.choice-input:focus + .choice-label {
+    outline: 2px solid var(--font-color);
+    outline-offset: 2px;
+}
+
+/* Error State */
+.choice-input.is-invalid + .choice-label {
+    border-color: #dc3545;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .choice-label {
+        padding: 0.75rem 1rem;
+    }
+
+    .choice-radio {
+        width: 20px;
+        height: 20px;
+    }
+
+    .choice-radio::after {
+        width: 10px;
+        height: 10px;
+    }
+
+    .choice-text {
+        font-size: 0.9rem;
+    }
+}
+
+/* Animation for selection */
+@keyframes selectChoice {
+    0% {
+        transform: scale(0.95);
+    }
+    50% {
+        transform: scale(1.02);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.choice-input:checked + .choice-label {
+    animation: selectChoice 0.3s ease forwards;
+}
+
+
+/*toggle switch code*/
+  /* Keep your existing Bootstrap classes but override the styling */
+  .custom-control.custom-checkbox {
+    padding-left: 0; /* Remove default padding */
+    display: flex;
+    align-items: center;
+}
+
+/* Hide the default checkbox */
+.custom-control-input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+/* Style the label to create the switch container */
+.custom-control-label {
+    position: relative;
+    padding-left: 50px; /* Space for the switch */
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    font-size: 14px;
+}
+
+/* Create the switch background */
+.custom-control-label::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: 22px;
+    background-color: #ccc;
+    border-radius: 22px;
+    transition: 0.4s;
+}
+
+/* Create the switch handle */
+.custom-control-label::after {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.4s;
+}
+
+/* Style the checked state */
+.custom-control-input:checked + .custom-control-label::before {
+    background-color: #2196F3;
+}
+
+.custom-control-input:checked + .custom-control-label::after {
+    transform: translate(18px, -50%);
+}
+
+/* Optional: Add focus styles */
+.custom-control-input:focus + .custom-control-label::before {
+    box-shadow: 0 0 1px #2196F3;
+}
