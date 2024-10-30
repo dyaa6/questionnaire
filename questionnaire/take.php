@@ -437,7 +437,7 @@ if (!empty($questionnaire['background_color'])) {
     </div>
 
 
-    <!-- Enhanced Multiple Choice Styling with Dynamic Colors -->
+    <!-- Enhanced Choice Styling with Dynamic Colors -->
     <style>
         
     </style>

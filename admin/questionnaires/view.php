@@ -16,9 +16,14 @@ if (isset($_GET['id'])) {
     $end_date = !empty($_GET['end_date']) ? $_GET['end_date'] : null;
     $limit = !empty($_GET['limit']) ? (int)$_GET['limit'] : null;
 
+    // New parameters for cross filtering
+    $cross_question_id = isset($_GET['cross_question']) ? (int)$_GET['cross_question'] : null;
+    $cross_stars_value = isset($_GET['cross_stars_value']) ? (int)$_GET['cross_stars_value'] : null;
+    $cross_choice_value = isset($_GET['cross_choice_value']) ? (int)$_GET['cross_choice_value'] : null;
+
     // Validate filter_type
     // Add the new filter types to the valid_filter_types array
-    $valid_filter_types = ['all', 'period', 'limit', 'today', 'yesterday', 'last_week'];
+    $valid_filter_types = ['all', 'period', 'limit', 'today', 'yesterday', 'last_week', 'cross'];
     if (!in_array($filter_type, $valid_filter_types)) {
         $filter_type = 'all';
     }
@@ -32,6 +37,39 @@ if (isset($_GET['id'])) {
     $stmt = $pdo->prepare('SELECT * FROM questions WHERE questionnaire_id = ? ORDER BY question_id');
     $stmt->execute([$questionnaire_id]);
     $questions = $stmt->fetchAll();
+
+    // Prepare arrays for question types
+    $stars_questions = [];
+    $choice_questions = [];
+    $questionTypes = [];
+    foreach ($questions as $question) {
+        $questionTypes[$question['question_id']] = $question['question_type'];
+        if ($question['question_type'] == 'stars') {
+            $stars_questions[] = $question;
+        } elseif ($question['question_type'] == 'choice') {
+            $choice_questions[] = $question;
+        }
+    }
+
+    // Fetch choices for choice questions
+    $questionChoices = []; // key is question_id, value is an array of choices
+    foreach ($choice_questions as $question) {
+        $stmtChoices = $pdo->prepare('SELECT * FROM choices WHERE question_id = ?');
+        $stmtChoices->execute([$question['question_id']]);
+        $choices = $stmtChoices->fetchAll(PDO::FETCH_ASSOC);
+        $questionChoices[$question['question_id']] = $choices;
+    }
+
+    // Get the question type for cross filtering
+    $cross_question_type = null;
+    if ($cross_question_id) {
+        foreach ($questions as $question) {
+            if ($question['question_id'] == $cross_question_id) {
+                $cross_question_type = $question['question_type'];
+                break;
+            }
+        }
+    }
 
     // Prepare response IDs based on filter
     $response_ids = [];
@@ -89,13 +127,27 @@ if (isset($_GET['id'])) {
         $stmt->execute([$questionnaire_id, $start_date . ' 00:00:00', $today . ' 23:59:59']);
         $responses = $stmt->fetchAll(PDO::FETCH_COLUMN);
         $response_ids = $responses ? $responses : [];
+    } elseif ($filter_type === 'cross' && $cross_question_id && $cross_question_type && (($cross_question_type == 'stars' && $cross_stars_value) || ($cross_question_type == 'choice' && $cross_choice_value))) {
+        // Handle cross filtering
+        // Determine answer_value based on question type
+        if ($cross_question_type == 'stars') {
+            $answer_value = $cross_stars_value;
+        } elseif ($cross_question_type == 'choice') {
+            $answer_value = $cross_choice_value;
+        }
+
+        // Fetch response IDs where the answer matches the selected value
+        $stmt = $pdo->prepare('SELECT DISTINCT response_id FROM answers WHERE question_id = ? AND answer_text = ?');
+        $stmt->execute([$cross_question_id, $answer_value]);
+        $responses = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        $response_ids = $responses ? $responses : [];
     }
 
     // Depending on filter_type, prepare the SQL condition for answers
     $apply_filters = false;
     $sql_filter = '';
 
-    if (in_array($filter_type, ['period', 'limit', 'today', 'yesterday', 'last_week'])) {
+    if (in_array($filter_type, ['period', 'limit', 'today', 'yesterday', 'last_week', 'cross'])) {
         $apply_filters = true;
         if (!empty($response_ids)) {
             // Use IN clause to filter by response_ids
@@ -160,9 +212,7 @@ if (isset($_GET['id'])) {
             ];
         } elseif ($question['question_type'] == 'choice') {
             // Fetch choices for this question
-            $stmtChoices = $pdo->prepare('SELECT * FROM choices WHERE question_id = ?');
-            $stmtChoices->execute([$question['question_id']]);
-            $choices = $stmtChoices->fetchAll(PDO::FETCH_ASSOC);
+            $choices = $questionChoices[$question['question_id']] ?? [];
 
             // Initialize counts
             $choiceCounts = [];
@@ -183,7 +233,7 @@ if (isset($_GET['id'])) {
             // Map counts to choice texts
             $choiceCountsWithText = [];
             foreach ($choiceCounts as $choiceId => $count) {
-                $choiceText = isset($choiceTextById[$choiceId]) ? $choiceTextById[$choiceId] : 'غير معروف';
+                $choiceText = isset($choiceTextById[$choiceId]) ? $choiceTextById[$choiceId] : 'Unknown';
                 $choiceCountsWithText[$choiceText] = $count;
             }
 
@@ -195,6 +245,9 @@ if (isset($_GET['id'])) {
             ];
         }
     }
+    // Unset the reference to prevent duplication issues
+    unset($question);
+
 } else {
     // Redirect to index if no ID is provided
     header('Location: index.php');
@@ -245,10 +298,18 @@ if (isset($_GET['id'])) {
                         عرض الردود لفترة معينة
                     </label>
                 </div>
+                <!-- Limit Filter -->
                 <div class="form-check">
                     <input class="form-check-input" type="radio" name="filter_type" id="filter_limit" value="limit" <?php echo ($filter_type == 'limit') ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="filter_limit">
                         عرض آخر عدد من الردود
+                    </label>
+                </div>
+                <!-- Cross Filtering Option -->
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="filter_type" id="filter_cross" value="cross" <?php echo ($filter_type == 'cross') ? 'checked' : ''; ?>>
+                    <label class="form-check-label" for="filter_cross">
+                        تصفية حسب إجابة محددة (التصفية المتقاطعة)
                     </label>
                 </div>
             </div>
@@ -269,6 +330,41 @@ if (isset($_GET['id'])) {
             <div id="limit_input" class="mb-4" style="display: none;">
                 <label for="limit" class="form-label">عدد الردود الأخيرة:</label>
                 <input type="number" id="limit" name="limit" class="form-control" min="1" value="<?php echo htmlspecialchars($limit); ?>">
+            </div>
+
+            <!-- Cross Filter Inputs -->
+            <div id="cross_filter_inputs" class="mb-4" style="display: none;">
+                <label for="cross_question" class="form-label">اختر السؤال:</label>
+                <select id="cross_question" name="cross_question" class="form-control">
+                    <option value="">-- اختر سؤالاً --</option>
+                    <?php foreach ($questions as $question): ?>
+                        <?php if ($question['question_type'] == 'stars' || $question['question_type'] == 'choice'): ?>
+                            <option value="<?php echo $question['question_id']; ?>" data-question-type="<?php echo $question['question_type']; ?>" <?php if (isset($_GET['cross_question']) && $_GET['cross_question'] == $question['question_id']) echo 'selected'; ?>>
+                                <?php echo htmlspecialchars($question['question_text']); ?>
+                            </option>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </select>
+
+                <!-- Stars Rating Input -->
+                <div id="cross_stars_input" style="display: none; margin-top: 15px;">
+                    <label for="cross_stars_value" class="form-label">اختر التقييم (عدد النجوم):</label>
+                    <select id="cross_stars_value" name="cross_stars_value" class="form-control">
+                        <option value="">-- اختر التقييم --</option>
+                        <?php for ($i = 1; $i <= 10; $i++): ?>
+                            <option value="<?php echo $i; ?>" <?php if (isset($_GET['cross_stars_value']) && $_GET['cross_stars_value'] == $i) echo 'selected'; ?>><?php echo $i; ?></option>
+                        <?php endfor; ?>
+                    </select>
+                </div>
+
+                <!-- Choice Selection Input -->
+                <div id="cross_choice_input" style="display: none; margin-top: 15px;">
+                    <label for="cross_choice_value" class="form-label">اختر الإجابة:</label>
+                    <select id="cross_choice_value" name="cross_choice_value" class="form-control">
+                        <option value="">-- اختر إجابة --</option>
+                        <!-- Options will be populated dynamically via JavaScript -->
+                    </select>
+                </div>
             </div>
 
             <button type="submit" class="btn btn-primary">تطبيق الفلاتر</button>
@@ -411,8 +507,22 @@ if (isset($_GET['id'])) {
     <!-- Export Links -->
     <?php if ($hasResponses): ?>
         <div class="mt-5 text-center">
-            <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=excel&filter_type=<?php echo urlencode($filter_type); ?>&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&limit=<?php echo urlencode($limit); ?>" class="btn btn-primary mt-1">تصدير البيانات إلى ملف xls</a>
-            <a href="export_csv.php?id=<?php echo $questionnaire_id; ?>&format=csv&filter_type=<?php echo urlencode($filter_type); ?>&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&limit=<?php echo urlencode($limit); ?>" class="btn btn-primary mt-1">تصدير البيانات إلى ملف csv</a>
+            <!-- Include cross filtering parameters in export links -->
+            <?php 
+            $export_params = http_build_query([
+                'id' => $questionnaire_id,
+                'format' => 'excel',
+                'filter_type' => $filter_type,
+                'start_date' => $start_date,
+                'end_date' => $end_date,
+                'limit' => $limit,
+                'cross_question' => $cross_question_id,
+                'cross_stars_value' => $cross_stars_value,
+                'cross_choice_value' => $cross_choice_value
+            ]);
+            ?>
+            <a href="export_csv.php?<?php echo $export_params; ?>&format=excel" class="btn btn-primary mt-1">تصدير البيانات إلى ملف xls</a>
+            <a href="export_csv.php?<?php echo $export_params; ?>&format=csv" class="btn btn-primary mt-1">تصدير البيانات إلى ملف csv</a>
             <!-- PDF Download Button -->
             <button id="download-pdf" class="btn btn-primary mt-1">تحميل التقرير كملف PDF</button>
         </div>
@@ -432,7 +542,7 @@ if (isset($_GET['id'])) {
     font-weight: bold;
 }
 
-#period_inputs, #limit_input {
+#period_inputs, #limit_input, #cross_filter_inputs {
     margin-top: 15px;
 }
 
@@ -475,18 +585,78 @@ if (isset($_GET['id'])) {
         const filterTypeRadios = document.getElementsByName('filter_type');
         const periodInputs = document.getElementById('period_inputs');
         const limitInput = document.getElementById('limit_input');
+        const crossFilterInputs = document.getElementById('cross_filter_inputs');
+        const crossQuestionSelect = document.getElementById('cross_question');
+        const crossStarsInput = document.getElementById('cross_stars_input');
+        const crossChoiceInput = document.getElementById('cross_choice_input');
+        const crossChoiceValueSelect = document.getElementById('cross_choice_value');
+
+        // Get cross filtering values from PHP
+        const crossStarsValue = <?php echo json_encode($cross_stars_value); ?>;
+        const crossChoiceValue = <?php echo json_encode($cross_choice_value); ?>;
+
+        // Question choices data from PHP
+        const questionChoices = <?php echo json_encode($questionChoices); ?>;
 
         function updateFilterFields() {
             const selectedFilter = document.querySelector('input[name="filter_type"]:checked').value;
             if (selectedFilter === 'all' || selectedFilter === 'today' || selectedFilter === 'yesterday' || selectedFilter === 'last_week') {
                 periodInputs.style.display = 'none';
                 limitInput.style.display = 'none';
+                crossFilterInputs.style.display = 'none';
             } else if (selectedFilter === 'period') {
                 periodInputs.style.display = 'flex';
                 limitInput.style.display = 'none';
+                crossFilterInputs.style.display = 'none';
             } else if (selectedFilter === 'limit') {
                 periodInputs.style.display = 'none';
                 limitInput.style.display = 'block';
+                crossFilterInputs.style.display = 'none';
+            } else if (selectedFilter === 'cross') {
+                periodInputs.style.display = 'none';
+                limitInput.style.display = 'none';
+                crossFilterInputs.style.display = 'block';
+                updateCrossFilterFields(); // Update cross filter fields on filter type change
+            } else {
+                periodInputs.style.display = 'none';
+                limitInput.style.display = 'none';
+                crossFilterInputs.style.display = 'none';
+            }
+        }
+
+        function updateCrossFilterFields() {
+            const selectedQuestionId = crossQuestionSelect.value;
+            if (selectedQuestionId) {
+                const selectedOption = crossQuestionSelect.options[crossQuestionSelect.selectedIndex];
+                const questionType = selectedOption.getAttribute('data-question-type');
+                if (questionType === 'stars') {
+                    crossStarsInput.style.display = 'block';
+                    crossChoiceInput.style.display = 'none';
+                } else if (questionType === 'choice') {
+                    crossStarsInput.style.display = 'none';
+                    crossChoiceInput.style.display = 'block';
+
+                    // Populate choices for selected question
+                    const choices = questionChoices[selectedQuestionId];
+                    crossChoiceValueSelect.innerHTML = '<option value="">-- اختر إجابة --</option>';
+                    if (choices) {
+                        choices.forEach(function(choice) {
+                            const option = document.createElement('option');
+                            option.value = choice.choice_id;
+                            option.text = choice.choice_text;
+                            if (crossChoiceValue == choice.choice_id) {
+                                option.selected = true;
+                            }
+                            crossChoiceValueSelect.appendChild(option);
+                        });
+                    }
+                } else {
+                    crossStarsInput.style.display = 'none';
+                    crossChoiceInput.style.display = 'none';
+                }
+            } else {
+                crossStarsInput.style.display = 'none';
+                crossChoiceInput.style.display = 'none';
             }
         }
 
@@ -496,6 +666,13 @@ if (isset($_GET['id'])) {
         filterTypeRadios.forEach(function(radio) {
             radio.addEventListener('change', updateFilterFields);
         });
+
+        crossQuestionSelect.addEventListener('change', updateCrossFilterFields);
+
+        // Call updateCrossFilterFields on page load if cross filter is selected
+        if (document.querySelector('input[name="filter_type"]:checked').value === 'cross') {
+            updateCrossFilterFields();
+        }
 
         // Chart creation logic
         const chartData = <?php echo json_encode($chartData); ?>;

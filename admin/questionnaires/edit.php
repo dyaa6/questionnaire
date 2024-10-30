@@ -175,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['add_question'])) {
         $stmt->execute([$questionnaire_id, $question_text, $question_type, $is_required]);
         $question_id = $pdo->lastInsertId();
 
-        // If it's a multiple choice question, insert the choices
+        // If it's a choice question, insert the choices
         if ($question_type === 'choice' && isset($_POST['choices']) && is_array($_POST['choices'])) {
             $stmt = $pdo->prepare('INSERT INTO choices (question_id, choice_text) VALUES (?, ?)');
             foreach ($_POST['choices'] as $choice) {
@@ -405,7 +405,7 @@ $questions = $stmt->fetchAll();
                                         </div>
                                     </div>
 
-                                    <!-- Multiple Choice Options (initially hidden) -->
+                                    <!-- Choice Options (initially hidden) -->
                                     <div id="choicesSection" style="display: none;">
                                         <div class="form-group">
                                             <label>خيارات الإجابة</label>
